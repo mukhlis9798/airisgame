@@ -39,9 +39,14 @@
 - Kid-favorite silhouettes: Apple, Ice Cream Cone, Birthday Cake, Balloon, Teddy Bear, Flower, Car.
 - Hybrid geometry: Curves for rounded tops (ice cream scoops, cake tiers) and straight lines for bases (cones, candles).
 
-### 🎨 7. Color Match Snap Game
-- **Designed for Pre-Literate Toddlers**: Does not rely on reading text; baskets feature rich color-coded backgrounds, bold matching borders, and semi-transparent ghost silhouettes (🍎 Red, 🐬 Blue, ⭐ Yellow, 🐸 Green, 🍊 Orange, 🍇 Purple).
-- Drag-and-drop and tap-to-snap mechanics with encouraging audio reinforcement.
+### 🎨 7. 7-Color Rainbow Snap Game
+- **All 7 Rainbow Colors**: 🍎 Red (*Merah*), 🍊 Orange (*Oren*), ⭐ Yellow (*Kuning*), 🐸 Green (*Hijau*), 🐬 Blue (*Biru*), 🍇 Purple (*Ungu*), and 🌸 Pink (*Merah Jambu*).
+- **Designed for Pre-Literate Toddlers**: Rich color-coded backgrounds, bold matching borders, and semi-transparent ghost silhouettes allow toddlers to recognize colors without reading.
+- **3 Progressive Play Modes**:
+  - ⭐ **Round 1 (3 Primary Colors)**: Red, Blue, Yellow — ideal for young toddlers.
+  - 🌸 **Round 2 (4 Colors)**: Green, Orange, Purple, Pink.
+  - 🌈 **Full Rainbow (7 Colors)**: All seven vibrant rainbow colors on screen!
+- **Dual Input Modes**: Supports both fluid finger-dragging with magnetic snap physics AND instant tap-to-snap for tiny fingers.
 
 ### 🔷 8. Shapes & Geometry
 - Circle, Square, Triangle, Star, Heart, Rectangle, Oval, and Diamond.
