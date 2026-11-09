@@ -1,14 +1,25 @@
 package com.pocketdev.airisgame.audio
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.pocketdev.airisgame.core.LanguageManager
 import java.util.Locale
 
 object SpeechEngine {
     private var tts: TextToSpeech? = null
-    private var isInitialized = false
+    var isInitialized by mutableStateOf(false)
+        private set
+
+    var isMalayTtsAvailable by mutableStateOf(false)
+        private set
+
+    var isArabicTtsAvailable by mutableStateOf(false)
+        private set
 
     var pitch: Float = 1.25f
         set(value) {
@@ -28,11 +39,41 @@ object SpeechEngine {
             if (status == TextToSpeech.SUCCESS) {
                 isInitialized = true
                 tts?.let { engine ->
+                    verifyLocales(engine)
                     applyLanguage(engine)
                     engine.setPitch(pitch)
                     engine.setSpeechRate(speechRate)
                 }
             }
+        }
+    }
+
+    private fun verifyLocales(engine: TextToSpeech) {
+        try {
+            val msLocale = Locale("ms", "MY")
+            val msStatus = engine.isLanguageAvailable(msLocale)
+            isMalayTtsAvailable = (msStatus >= TextToSpeech.LANG_AVAILABLE)
+
+            val arLocale = Locale("ar")
+            val arStatus = engine.isLanguageAvailable(arLocale)
+            isArabicTtsAvailable = (arStatus >= TextToSpeech.LANG_AVAILABLE)
+        } catch (_: Exception) {
+            isMalayTtsAvailable = false
+            isArabicTtsAvailable = false
+        }
+    }
+
+    /**
+     * Launch system settings intent to download missing TTS voice data packages
+     */
+    fun openInstallTtsDataIntent(context: Context) {
+        try {
+            val installIntent = Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(installIntent)
+        } catch (_: Exception) {
+            // Intent not handled by custom OEM ROM
         }
     }
 
@@ -49,7 +90,9 @@ object SpeechEngine {
         } else {
             Locale.US
         }
-        engine.setLanguage(targetLocale)
+        try {
+            engine.setLanguage(targetLocale)
+        } catch (_: Exception) {}
     }
 
     fun setMuted(muted: Boolean) {
@@ -79,7 +122,7 @@ object SpeechEngine {
     /**
      * Speaks Arabic phonetics authentically.
      * If Arabic TTS data is installed, speaks arabicText directly with native Makhraj.
-     * Otherwise, uses phoneticFallback (e.g. "Thaa", "Ba", "Bi", "Bu") so it never spells out letters!
+     * Otherwise, uses phoneticFallback so it never spells out letters!
      */
     fun speakArabic(arabicText: String, phoneticFallback: String) {
         val volume = AudioSettings.effectiveVoiceVolume
@@ -95,7 +138,6 @@ object SpeechEngine {
                     engine.setLanguage(arLocale)
                     engine.speak(arabicText, TextToSpeech.QUEUE_FLUSH, params, "AR_TTS_${System.currentTimeMillis()}")
                 } else {
-                    // Fallback to tuned phonetic string with standard engine
                     applyLanguage(engine)
                     engine.speak(phoneticFallback, TextToSpeech.QUEUE_FLUSH, params, "AR_FALLBACK_${System.currentTimeMillis()}")
                 }

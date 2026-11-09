@@ -28,6 +28,9 @@ object LanguageManager {
     fun abcTitle(): String = if (isMalay()) "Huruf ABC" else "ABC Phonics"
     fun abcSubtitle(): String = if (isMalay()) "Kenal Huruf & Bunyi!" else "Phonics & Words!"
 
+    fun numbersTitle(): String = if (isMalay()) "1 2 3 Nombor" else "1 2 3 Numbers"
+    fun numbersSubtitle(): String = if (isMalay()) "Kira & Sentuh!" else "Count & Learn!"
+
     fun hijaiyahTitle(): String = "ا ب ت Hijaiyah"
     fun hijaiyahSubtitle(): String = if (isMalay()) "Belajar Baris Hijaiyah!" else "Arabic Letters & Harakat!"
 

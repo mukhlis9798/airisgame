@@ -5,10 +5,12 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.SoundPool
+import com.pocketdev.airisgame.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
@@ -16,10 +18,39 @@ import kotlin.math.sin
 object SoundEngine {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private const val SAMPLE_RATE = 44100
+    private const val MAX_STREAMS = 10
 
     private var soundPool: SoundPool? = null
     private var appContext: Context? = null
-    private val soundMap = mutableMapOf<Int, Int>()
+    private val soundMap = ConcurrentHashMap<Int, Int>()
+
+    // All bundled raw audio resources to preload for sub-15ms latency
+    private val rawResourceList = listOf(
+        R.raw.sound_animal_ape,
+        R.raw.sound_animal_bee,
+        R.raw.sound_animal_cat,
+        R.raw.sound_animal_chicken,
+        R.raw.sound_animal_cow,
+        R.raw.sound_animal_dog,
+        R.raw.sound_animal_duck,
+        R.raw.sound_animal_elephant,
+        R.raw.sound_animal_frog,
+        R.raw.sound_animal_horse,
+        R.raw.sound_animal_leopard,
+        R.raw.sound_animal_lion,
+        R.raw.sound_animal_owl,
+        R.raw.sound_animal_penguin,
+        R.raw.sound_animal_pig,
+        R.raw.sound_animal_rooster,
+        R.raw.sound_animal_sheep,
+        R.raw.sound_animal_tiger,
+        R.raw.sound_animal_wolf,
+        R.raw.sound_animal_zebra,
+        R.raw.sound_vehicle_bicycle,
+        R.raw.sound_vehicle_car,
+        R.raw.sound_vehicle_police,
+        R.raw.sound_vehicle_train
+    )
 
     fun init(context: Context) {
         if (soundPool != null) return
@@ -29,10 +60,51 @@ object SoundEngine {
                 .setUsage(AudioAttributes.USAGE_GAME)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
-            soundPool = SoundPool.Builder()
-                .setMaxStreams(10)
+            val sp = SoundPool.Builder()
+                .setMaxStreams(MAX_STREAMS)
                 .setAudioAttributes(audioAttributes)
                 .build()
+            soundPool = sp
+
+            // Preload all raw sound resources in background thread
+            scope.launch(Dispatchers.IO) {
+                val ctx = appContext ?: return@launch
+                for (resId in rawResourceList) {
+                    try {
+                        val soundId = sp.load(ctx, resId, 1)
+                        soundMap[resId] = soundId
+                    } catch (_: Exception) {}
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Pause all active sound streams when Activity pauses
+     */
+    fun pauseAll() {
+        try {
+            soundPool?.autoPause()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Resume sound streams when Activity resumes
+     */
+    fun resumeAll() {
+        try {
+            soundPool?.autoResume()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Release all SoundPool resources on Activity destroy
+     */
+    fun release() {
+        try {
+            soundPool?.release()
+            soundPool = null
+            soundMap.clear()
         } catch (_: Exception) {}
     }
 
@@ -43,26 +115,37 @@ object SoundEngine {
     fun isMuted(): Boolean = AudioSettings.isSfxMuted
 
     /**
-     * Plays a raw audio resource (e.g. real animal mp3 or vehicle mp3) from res/raw.
+     * Plays a raw audio resource with concurrent polyphony and low latency.
      */
     fun playRawSound(resId: Int) {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
 
-        val sp = soundPool
-        val ctx = appContext
-        if (sp != null && ctx != null) {
-            val soundId = soundMap.getOrPut(resId) {
-                sp.load(ctx, resId, 1)
-            }
+        val sp = soundPool ?: return
+        val ctx = appContext ?: return
+
+        val soundId = soundMap[resId]
+        if (soundId != null) {
             val playResult = sp.play(soundId, volume, volume, 1, 0, 1.0f)
             if (playResult == 0) {
-                // SoundPool might still be loading; retry after short delay
+                // If stream failed because sound was still loading, retry briefly
                 scope.launch {
-                    kotlinx.coroutines.delay(120L)
+                    kotlinx.coroutines.delay(100L)
                     val v = AudioSettings.effectiveSfxVolume
                     if (v > 0.01f) {
                         sp.play(soundId, v, v, 1, 0, 1.0f)
+                    }
+                }
+            }
+        } else {
+            // Lazy load and play
+            val newSoundId = sp.load(ctx, resId, 1)
+            soundMap[resId] = newSoundId
+            sp.setOnLoadCompleteListener { pool, sampleId, status ->
+                if (status == 0 && sampleId == newSoundId) {
+                    val v = AudioSettings.effectiveSfxVolume
+                    if (v > 0.01f) {
+                        pool.play(newSoundId, v, v, 1, 0, 1.0f)
                     }
                 }
             }
@@ -70,7 +153,7 @@ object SoundEngine {
     }
 
     /**
-     * Xylophone notes belong to the Voice & Learning Instrument category.
+     * Procedural Xylophone note synthesis with rich overtone harmonics.
      */
     fun playXylophoneNote(frequency: Float) {
         val volume = AudioSettings.effectiveVoiceVolume
@@ -233,9 +316,51 @@ object SoundEngine {
         }
     }
 
-    /**
-     * Procedural synthesis of Fire Truck Siren (Wailing American/European emergency siren)
-     */
+    fun playAirplaneSound() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        scope.launch {
+            val durationSec = 1.0f
+            val numSamples = (SAMPLE_RATE * durationSec).toInt()
+            val buffer = ShortArray(numSamples)
+            for (i in 0 until numSamples) {
+                val t = i.toFloat() / SAMPLE_RATE
+                val env = exp(-1.8f * t)
+                val noise = (Math.random() * 2.0 - 1.0) * 0.8
+                val whoosh = noise * env
+                val scaled = (whoosh * Short.MAX_VALUE * 0.7f * volume).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                buffer[i] = scaled.toShort()
+            }
+            playPcm(buffer)
+        }
+    }
+
+    fun playBoatSound() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        scope.launch {
+            val durationSec = 0.9f
+            val numSamples = (SAMPLE_RATE * durationSec).toInt()
+            val buffer = ShortArray(numSamples)
+            for (i in 0 until numSamples) {
+                val t = i.toFloat() / SAMPLE_RATE
+                val env = exp(-1.5f * t)
+                val horn = sin(2.0 * PI * 185.0 * t) * 0.6 + sin(2.0 * PI * 220.0 * t) * 0.4
+                val sample = horn * env
+                val scaled = (sample * Short.MAX_VALUE * 0.8f * volume).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                buffer[i] = scaled.toShort()
+            }
+            playPcm(buffer)
+        }
+    }
+
+    fun playHelicopterSound() = playHelicopterRotor()
+    fun playBusSound() = playBusHorn()
+    fun playRocketSound() = playRocketThrust()
+    fun playTractorSound() = playTractorEngine()
+
     fun playFireTruckSiren() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
@@ -246,8 +371,8 @@ object SoundEngine {
 
             for (i in 0 until numSamples) {
                 val t = i.toFloat() / SAMPLE_RATE
-                val sweep = (sin(2.0 * PI * 1.5 * t) + 1.0) * 0.5 // 0.0 to 1.0
-                val freq = 550.0 + sweep * 450.0 // 550Hz to 1000Hz
+                val sweep = (sin(2.0 * PI * 1.5 * t) + 1.0) * 0.5
+                val freq = 550.0 + sweep * 450.0
                 val sample = sin(2.0 * PI * freq * t)
                 val scaled = (sample * Short.MAX_VALUE * 0.75f * volume).toInt()
                     .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
@@ -257,9 +382,6 @@ object SoundEngine {
         }
     }
 
-    /**
-     * Procedural synthesis of Ambulance Siren (Authentic two-tone Martin horn: Nee-Naw)
-     */
     fun playAmbulanceSiren() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
@@ -281,10 +403,34 @@ object SoundEngine {
         }
     }
 
-    /**
-     * Procedural synthesis of Airplane Jet Engine Roar
-     */
-    fun playAirplaneSound() {
+    fun playBicycleBell() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        scope.launch {
+            val durationSec = 0.6f
+            val numSamples = (SAMPLE_RATE * durationSec).toInt()
+            val buffer = ShortArray(numSamples)
+
+            for (i in 0 until numSamples) {
+                val t = i.toFloat() / SAMPLE_RATE
+                val ring1 = exp(-7.0f * t) * sin(2.0 * PI * 2093.0 * t)
+                val ring2 = exp(-9.0f * t) * sin(2.0 * PI * 2637.0 * t) * 0.6
+                val secondChimeOffset = 0.12f
+                val ring3 = if (t > secondChimeOffset) {
+                    val t2 = t - secondChimeOffset
+                    exp(-7.0f * t2) * sin(2.0 * PI * 2093.0 * t2) * 0.9
+                } else 0.0
+
+                val sample = ring1 + ring2 + ring3
+                val scaled = (sample * Short.MAX_VALUE * 0.6f * volume).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                buffer[i] = scaled.toShort()
+            }
+            playPcm(buffer)
+        }
+    }
+
+    fun playHelicopterRotor() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
         scope.launch {
@@ -294,11 +440,9 @@ object SoundEngine {
 
             for (i in 0 until numSamples) {
                 val t = i.toFloat() / SAMPLE_RATE
-                val env = if (t < 0.3f) t / 0.3f else if (t > 0.9f) (1.2f - t) / 0.3f else 1.0f
-                val noise = (Math.random() * 2.0 - 1.0) * 0.65
-                val hum = sin(2.0 * PI * 180.0 * t) * 0.35 + sin(2.0 * PI * 360.0 * t) * 0.2
-                val sample = (noise + hum) * env
-                val scaled = (sample * Short.MAX_VALUE * 0.65f * volume).toInt()
+                val bladeChop = sin(2.0 * PI * 14.0 * t).coerceAtLeast(0.0)
+                val chopperNoise = (bladeChop * bladeChop) * (sin(2.0 * PI * 110.0 * t) + (Math.random() * 0.3))
+                val scaled = (chopperNoise * Short.MAX_VALUE * 0.8f * volume).toInt()
                     .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                 buffer[i] = scaled.toShort()
             }
@@ -306,87 +450,7 @@ object SoundEngine {
         }
     }
 
-    /**
-     * Procedural synthesis of Helicopter Rotor Chop-Chop
-     */
-    fun playHelicopterSound() {
-        val volume = AudioSettings.effectiveSfxVolume
-        if (volume <= 0.01f) return
-        scope.launch {
-            val durationSec = 1.2f
-            val numSamples = (SAMPLE_RATE * durationSec).toInt()
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / SAMPLE_RATE
-                val pulse = (sin(2.0 * PI * 12.0 * t) + 1.0) * 0.5 // 12 chops per sec
-                val chop = Math.pow(pulse, 4.0) // sharp pulse
-                val noise = (Math.random() * 2.0 - 1.0) * 0.55
-                val rumble = sin(2.0 * PI * 85.0 * t) * 0.45
-                val sample = (noise + rumble) * chop
-                val scaled = (sample * Short.MAX_VALUE * 0.8f * volume).toInt()
-                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                buffer[i] = scaled.toShort()
-            }
-            playPcm(buffer)
-        }
-    }
-
-    /**
-     * Procedural synthesis of Boat / Ship Foghorn
-     */
-    fun playBoatSound() {
-        val volume = AudioSettings.effectiveSfxVolume
-        if (volume <= 0.01f) return
-        scope.launch {
-            val durationSec = 1.0f
-            val numSamples = (SAMPLE_RATE * durationSec).toInt()
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / SAMPLE_RATE
-                val env = if (t < 0.15f) t / 0.15f else if (t > 0.8f) (1.0f - t) / 0.2f else 1.0f
-                val fund = sin(2.0 * PI * 130.0 * t)
-                val h2 = sin(2.0 * PI * 260.0 * t) * 0.35
-                val h3 = sin(2.0 * PI * 390.0 * t) * 0.2
-                val sample = (fund + h2 + h3) * env
-                val scaled = (sample * Short.MAX_VALUE * 0.75f * volume).toInt()
-                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                buffer[i] = scaled.toShort()
-            }
-            playPcm(buffer)
-        }
-    }
-
-    /**
-     * Procedural synthesis of Bus Air Horn
-     */
-    fun playBusSound() {
-        val volume = AudioSettings.effectiveSfxVolume
-        if (volume <= 0.01f) return
-        scope.launch {
-            val durationSec = 0.75f
-            val numSamples = (SAMPLE_RATE * durationSec).toInt()
-            val buffer = ShortArray(numSamples)
-
-            for (i in 0 until numSamples) {
-                val t = i.toFloat() / SAMPLE_RATE
-                val env = if (t < 0.08f) t / 0.08f else if (t > 0.6f) (0.75f - t) / 0.15f else 1.0f
-                val tone1 = sin(2.0 * PI * 310.0 * t)
-                val tone2 = sin(2.0 * PI * 370.0 * t) * 0.8
-                val sample = (tone1 + tone2) * 0.5 * env
-                val scaled = (sample * Short.MAX_VALUE * 0.8f * volume).toInt()
-                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                buffer[i] = scaled.toShort()
-            }
-            playPcm(buffer)
-        }
-    }
-
-    /**
-     * Procedural synthesis of Rocket Blastoff
-     */
-    fun playRocketSound() {
+    fun playRocketThrust() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
         scope.launch {
@@ -396,11 +460,10 @@ object SoundEngine {
 
             for (i in 0 until numSamples) {
                 val t = i.toFloat() / SAMPLE_RATE
-                val env = (t / 1.3f).coerceIn(0.2f, 1.0f)
-                val noise = (Math.random() * 2.0 - 1.0) * 0.7
-                val rumble = sin(2.0 * PI * (60.0 + t * 40.0) * t) * 0.4
-                val sample = (noise + rumble) * env
-                val scaled = (sample * Short.MAX_VALUE * 0.75f * volume).toInt()
+                val envelope = if (t < 0.2f) (t / 0.2f) else exp(-1.5f * (t - 0.2f))
+                val rumble = (Math.random() * 2.0 - 1.0) * 0.7 + sin(2.0 * PI * 65.0 * t) * 0.3
+                val sample = rumble * envelope
+                val scaled = (sample * Short.MAX_VALUE * 0.7f * volume).toInt()
                     .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                 buffer[i] = scaled.toShort()
             }
@@ -408,27 +471,71 @@ object SoundEngine {
         }
     }
 
-    /**
-     * Procedural synthesis of Tractor Diesel Chug
-     */
-    fun playTractorSound() {
+    fun playTractorEngine() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
         scope.launch {
-            val durationSec = 1.1f
+            val durationSec = 1.2f
             val numSamples = (SAMPLE_RATE * durationSec).toInt()
             val buffer = ShortArray(numSamples)
 
             for (i in 0 until numSamples) {
                 val t = i.toFloat() / SAMPLE_RATE
-                val stroke = (sin(2.0 * PI * 8.0 * t) + 1.0) * 0.5
-                val chug = Math.pow(stroke, 3.0)
-                val tone = sin(2.0 * PI * 110.0 * t) * 0.6
-                val noise = (Math.random() * 2.0 - 1.0) * 0.4
-                val sample = (tone + noise) * chug
-                val scaled = (sample * Short.MAX_VALUE * 0.8f * volume).toInt()
+                val chug = sin(2.0 * PI * 8.0 * t).coerceAtLeast(0.0)
+                val engine = (chug * chug) * sin(2.0 * PI * 85.0 * t)
+                val scaled = (engine * Short.MAX_VALUE * 0.85f * volume).toInt()
                     .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                 buffer[i] = scaled.toShort()
+            }
+            playPcm(buffer)
+        }
+    }
+
+    fun playBusHorn() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        scope.launch {
+            val durationSec = 0.5f
+            val numSamples = (SAMPLE_RATE * durationSec).toInt()
+            val buffer = ShortArray(numSamples)
+
+            for (i in 0 until numSamples) {
+                val t = i.toFloat() / SAMPLE_RATE
+                val env = exp(-2.5f * t)
+                val hornTone = sin(2.0 * PI * 311.13 * t) * 0.6 + sin(2.0 * PI * 370.0 * t) * 0.4
+                val sample = hornTone * env
+                val scaled = (sample * Short.MAX_VALUE * 0.85f * volume).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                buffer[i] = scaled.toShort()
+            }
+            playPcm(buffer)
+        }
+    }
+
+    fun playLullabyMelody() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        scope.launch {
+            // Gentle Twinkle Twinkle lullaby notes (C4, C4, G4, G4, A4, A4, G4)
+            val notes = floatArrayOf(261.63f, 261.63f, 392.00f, 392.00f, 440.00f, 440.00f, 392.00f)
+            val noteDuration = 0.35f
+            val totalDuration = noteDuration * notes.size + 0.5f
+            val numSamples = (SAMPLE_RATE * totalDuration).toInt()
+            val buffer = ShortArray(numSamples)
+
+            for ((index, freq) in notes.withIndex()) {
+                val startIndex = (index * noteDuration * SAMPLE_RATE).toInt()
+                val noteLength = (SAMPLE_RATE * 0.5f).toInt()
+                for (i in 0 until noteLength) {
+                    val targetIdx = startIndex + i
+                    if (targetIdx >= numSamples) break
+                    val t = i.toFloat() / SAMPLE_RATE
+                    val env = exp(-3.0f * t)
+                    val sample = sin(2.0 * PI * freq * t) * env
+                    val cur = buffer[targetIdx].toInt()
+                    val addition = (sample * Short.MAX_VALUE * 0.4f * volume).toInt()
+                    buffer[targetIdx] = (cur + addition).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                }
             }
             playPcm(buffer)
         }

@@ -45,7 +45,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -106,6 +108,7 @@ data class ColorMatchItem(
 fun ColorMatchScreen(onBack: () -> Unit) {
     val confettiState = rememberConfettiState()
     val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
 
     // All 7 vibrant rainbow colors with toddler emojis
     val allRainbowItems = remember {
@@ -461,6 +464,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                     homeCenters[item.id] = coordinates.boundsInRoot().center
                                 },
                             onSnap = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 matchedColors[item.id] = true
                                 SoundEngine.playPop()
                                 SoundEngine.playSparkle()
@@ -483,6 +487,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                     )
                                     val snapThreshold = with(density) { 95.dp.toPx() }
                                     if (distance < snapThreshold) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         matchedColors[item.id] = true
                                         SoundEngine.playPop()
                                         SoundEngine.playSparkle()
@@ -535,6 +540,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                         homeCenters[item.id] = coordinates.boundsInRoot().center
                                     },
                                 onSnap = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     matchedColors[item.id] = true
                                     SoundEngine.playPop()
                                     SoundEngine.playSparkle()
@@ -557,6 +563,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                         )
                                         val snapThreshold = with(density) { 85.dp.toPx() }
                                         if (distance < snapThreshold) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             matchedColors[item.id] = true
                                             SoundEngine.playPop()
                                             SoundEngine.playSparkle()
@@ -600,6 +607,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                         homeCenters[item.id] = coordinates.boundsInRoot().center
                                     },
                                 onSnap = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     matchedColors[item.id] = true
                                     SoundEngine.playPop()
                                     SoundEngine.playSparkle()
@@ -622,6 +630,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                                         )
                                         val snapThreshold = with(density) { 85.dp.toPx() }
                                         if (distance < snapThreshold) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             matchedColors[item.id] = true
                                             SoundEngine.playPop()
                                             SoundEngine.playSparkle()

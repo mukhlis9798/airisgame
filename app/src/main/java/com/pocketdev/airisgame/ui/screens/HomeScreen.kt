@@ -84,6 +84,7 @@ import com.pocketdev.airisgame.ui.theme.YellowShadow
 enum class GameDestination {
     HOME,
     ABC,
+    NUMBERS,
     HIJAIYAH,
     COLOR_MATCH,
     ANIMALS,
@@ -134,6 +135,14 @@ fun HomeScreen(
                 bgColor = SkyVibrant,
                 shadowColor = SkyShadow,
                 destination = GameDestination.ABC
+            ),
+            ActivityCardItem(
+                titleSupplier = { LanguageManager.numbersTitle() },
+                subtitleSupplier = { LanguageManager.numbersSubtitle() },
+                icon = "🔢",
+                bgColor = FreshTeal,
+                shadowColor = MintShadow,
+                destination = GameDestination.NUMBERS
             ),
             ActivityCardItem(
                 titleSupplier = { LanguageManager.hijaiyahTitle() },

@@ -1,6 +1,7 @@
 package com.pocketdev.airisgame.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,19 +35,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pocketdev.airisgame.audio.AudioSettings
 import com.pocketdev.airisgame.audio.SoundEngine
 import com.pocketdev.airisgame.audio.SpeechEngine
+import com.pocketdev.airisgame.core.AppLanguage
+import com.pocketdev.airisgame.core.BedtimeTimerManager
+import com.pocketdev.airisgame.core.LanguageManager
+import com.pocketdev.airisgame.ui.components.AppBackButton
 import com.pocketdev.airisgame.ui.components.ToddlerButton
+import com.pocketdev.airisgame.ui.theme.BubblePink
 import com.pocketdev.airisgame.ui.theme.CandyCoral
 import com.pocketdev.airisgame.ui.theme.CoralShadow
 import com.pocketdev.airisgame.ui.theme.MagicLavender
-import androidx.compose.foundation.layout.statusBarsPadding
-import com.pocketdev.airisgame.ui.components.AppBackButton
+import com.pocketdev.airisgame.ui.theme.MintFresh
 import com.pocketdev.airisgame.ui.theme.SkyGradient
 import com.pocketdev.airisgame.ui.theme.SkyShadow
 import com.pocketdev.airisgame.ui.theme.SkyVibrant
@@ -53,6 +60,7 @@ import com.pocketdev.airisgame.ui.theme.TextDark
 
 @Composable
 fun ParentSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     var speechRate by remember { mutableStateOf(SpeechEngine.speechRate) }
     var pitch by remember { mutableStateOf(SpeechEngine.pitch) }
 
@@ -85,7 +93,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                 )
 
                 Text(
-                    text = if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Pusat Ibu Bapa" else "Parent Dashboard",
+                    text = if (LanguageManager.isMalay()) "Pusat Ibu Bapa" else "Parent Dashboard",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextDark
@@ -96,7 +104,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Audio & Voice Card
+            // 1. Bedtime & Screen Time Timer Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -105,7 +113,95 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🔊 " + if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Kawalan Audio & Suara" else "Sound & Voice Settings",
+                        text = "🌙 " + if (LanguageManager.isMalay()) "Had Masa Skrin & Masa Tidur" else "Screen Time & Bedtime Limit",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (LanguageManager.isMalay())
+                            "Kunci aplikasi secara lembut dengan animasi tidur dan lagu santai apabila masa bermain tamat."
+                        else
+                            "Gently locks the app with calming animations and lullabies when screen time expires.",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Timer Options Chips
+                    val timerOptions = listOf(0, 15, 30, 45, 60)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        timerOptions.forEach { minutes ->
+                            val isSelected = BedtimeTimerManager.timerDurationMinutes == minutes
+                            val label = if (minutes == 0) {
+                                if (LanguageManager.isMalay()) "Mati" else "Off"
+                            } else {
+                                "$minutes m"
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (isSelected) MagicLavender else Color(0xFFF1F5F9))
+                                    .border(
+                                        1.5.dp,
+                                        if (isSelected) Color(0xFF7C4DFF) else Color(0xFFE2E8F0),
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable {
+                                        SoundEngine.playPop()
+                                        BedtimeTimerManager.setTimer(minutes)
+                                    }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else TextDark
+                                )
+                            }
+                        }
+                    }
+
+                    if (BedtimeTimerManager.timerDurationMinutes > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val mins = BedtimeTimerManager.remainingSeconds / 60
+                        val secs = BedtimeTimerManager.remainingSeconds % 60
+                        Text(
+                            text = if (LanguageManager.isMalay())
+                                "⏳ Masa bermain berbaki: $mins minit $secs saat"
+                            else
+                                "⏳ Playtime remaining: $mins min $secs sec",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CandyCoral
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. Audio & Voice Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🔊 " + if (LanguageManager.isMalay()) "Kawalan Audio & Suara" else "Sound & Voice Settings",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark
@@ -121,21 +217,21 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "🗣️ " + com.pocketdev.airisgame.core.LanguageManager.voiceVolumeLabel(),
+                                text = "🗣️ " + LanguageManager.voiceVolumeLabel(),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextDark
                             )
                             Text(
-                                text = com.pocketdev.airisgame.core.LanguageManager.voiceVolumeSub(),
+                                text = LanguageManager.voiceVolumeSub(),
                                 fontSize = 12.sp,
                                 color = Color.Gray
                             )
                         }
                         Switch(
-                            checked = !com.pocketdev.airisgame.audio.AudioSettings.isVoiceMuted,
+                            checked = !AudioSettings.isVoiceMuted,
                             onCheckedChange = { checked ->
-                                com.pocketdev.airisgame.audio.AudioSettings.isVoiceMuted = !checked
+                                AudioSettings.isVoiceMuted = !checked
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
@@ -145,11 +241,11 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     }
 
                     Slider(
-                        value = if (com.pocketdev.airisgame.audio.AudioSettings.isVoiceMuted) 0f else com.pocketdev.airisgame.audio.AudioSettings.voiceVolume,
+                        value = if (AudioSettings.isVoiceMuted) 0f else AudioSettings.voiceVolume,
                         onValueChange = {
-                            com.pocketdev.airisgame.audio.AudioSettings.voiceVolume = it
-                            if (com.pocketdev.airisgame.audio.AudioSettings.isVoiceMuted && it > 0.05f) {
-                                com.pocketdev.airisgame.audio.AudioSettings.isVoiceMuted = false
+                            AudioSettings.voiceVolume = it
+                            if (AudioSettings.isVoiceMuted && it > 0.05f) {
+                                AudioSettings.isVoiceMuted = false
                             }
                         },
                         valueRange = 0.0f..1.0f,
@@ -169,21 +265,21 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "🎵 " + com.pocketdev.airisgame.core.LanguageManager.sfxVolumeLabel(),
+                                text = "🎵 " + LanguageManager.sfxVolumeLabel(),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextDark
                             )
                             Text(
-                                text = com.pocketdev.airisgame.core.LanguageManager.sfxVolumeSub(),
+                                text = LanguageManager.sfxVolumeSub(),
                                 fontSize = 12.sp,
                                 color = Color.Gray
                             )
                         }
                         Switch(
-                            checked = !com.pocketdev.airisgame.audio.AudioSettings.isSfxMuted,
+                            checked = !AudioSettings.isSfxMuted,
                             onCheckedChange = { checked ->
-                                com.pocketdev.airisgame.audio.AudioSettings.isSfxMuted = !checked
+                                AudioSettings.isSfxMuted = !checked
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
@@ -193,11 +289,11 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     }
 
                     Slider(
-                        value = if (com.pocketdev.airisgame.audio.AudioSettings.isSfxMuted) 0f else com.pocketdev.airisgame.audio.AudioSettings.sfxVolume,
+                        value = if (AudioSettings.isSfxMuted) 0f else AudioSettings.sfxVolume,
                         onValueChange = {
-                            com.pocketdev.airisgame.audio.AudioSettings.sfxVolume = it
-                            if (com.pocketdev.airisgame.audio.AudioSettings.isSfxMuted && it > 0.05f) {
-                                com.pocketdev.airisgame.audio.AudioSettings.isSfxMuted = false
+                            AudioSettings.sfxVolume = it
+                            if (AudioSettings.isSfxMuted && it > 0.05f) {
+                                AudioSettings.isSfxMuted = false
                             }
                         },
                         valueRange = 0.0f..1.0f,
@@ -211,9 +307,9 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
 
                     // Speech Rate Slider
                     Text(
-                        text = (if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Kelajuan Sebutan: " else "Speech Pace: ") +
+                        text = (if (LanguageManager.isMalay()) "Kelajuan Sebutan: " else "Speech Pace: ") +
                                 "${(speechRate * 100).toInt()}% " +
-                                (if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "(Perlahan lebih jelas untuk usia 2 tahun)" else "(Slower is clearer for toddlers)"),
+                                (if (LanguageManager.isMalay()) "(Perlahan lebih jelas untuk usia 2 tahun)" else "(Slower is clearer for toddlers)"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.Gray
@@ -235,7 +331,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
 
                     // Pitch Slider
                     Text(
-                        text = (if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Ketinggian Nada: " else "Voice Pitch: ") +
+                        text = (if (LanguageManager.isMalay()) "Ketinggian Nada: " else "Voice Pitch: ") +
                                 "${(pitch * 100).toInt()}%",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -261,14 +357,14 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         ToddlerButton(
-                            text = com.pocketdev.airisgame.core.LanguageManager.testVoiceBtn(),
+                            text = LanguageManager.testVoiceBtn(),
                             buttonColor = SkyVibrant,
                             shadowColor = SkyShadow,
                             modifier = Modifier.weight(1f),
                             height = 46.dp,
                             onClick = {
                                 SpeechEngine.speak(
-                                    if (com.pocketdev.airisgame.core.LanguageManager.isMalay())
+                                    if (LanguageManager.isMalay())
                                         "Hai Airis! Hebatnya belajar hari ini!"
                                     else
                                         "Hello Airis! Great job learning today!"
@@ -277,7 +373,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                         )
 
                         ToddlerButton(
-                            text = com.pocketdev.airisgame.core.LanguageManager.testSfxBtn(),
+                            text = LanguageManager.testSfxBtn(),
                             buttonColor = CandyCoral,
                             shadowColor = CoralShadow,
                             modifier = Modifier.weight(1f),
@@ -292,7 +388,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Language Selection Card
+            // 3. TTS Voice Package Status Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -301,14 +397,59 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🌐 " + if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Bahasa Pembelajaran" else "Learning Language",
+                        text = "🎙️ " + if (LanguageManager.isMalay()) "Status Pakej Suara TTS" else "TTS Voice Package Status",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val malayStatusText = if (SpeechEngine.isMalayTtsAvailable)
+                        (if (LanguageManager.isMalay()) "✅ Pakej Suara Bahasa Melayu sedia dipasang." else "✅ Malay Voice Data installed & ready.")
+                    else
+                        (if (LanguageManager.isMalay()) "⚠️ Pakej Suara Bahasa Melayu belum dipasang (menggunakan suara sistem lalai)." else "⚠️ Malay Voice Data not downloaded (using system default).")
+
+                    Text(
+                        text = malayStatusText,
+                        fontSize = 13.5.sp,
+                        color = if (SpeechEngine.isMalayTtsAvailable) Color(0xFF2E7D32) else CandyCoral,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    ToddlerButton(
+                        text = if (LanguageManager.isMalay()) "Muat Turun Data Suara Google TTS" else "Download Voice Data in Settings",
+                        buttonColor = SkyVibrant,
+                        shadowColor = SkyShadow,
+                        height = 44.dp,
+                        onClick = {
+                            SpeechEngine.openInstallTtsDataIntent(context)
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. Language Selection Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🌐 " + if (LanguageManager.isMalay()) "Bahasa Pembelajaran" else "Learning Language",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = if (com.pocketdev.airisgame.core.LanguageManager.isMalay())
+                        text = if (LanguageManager.isMalay())
                             "Pilih bahasa untuk perkataan, sebutan fonik dan audio."
                         else
                             "Choose language for words, phonics pronunciation, and audio.",
@@ -322,23 +463,23 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     ) {
                         ToddlerButton(
                             text = "English",
-                            buttonColor = if (!com.pocketdev.airisgame.core.LanguageManager.isMalay()) SkyVibrant else Color(0xFFE2E8F0),
-                            shadowColor = if (!com.pocketdev.airisgame.core.LanguageManager.isMalay()) SkyShadow else Color(0xFFCBD5E1),
+                            buttonColor = if (!LanguageManager.isMalay()) SkyVibrant else Color(0xFFE2E8F0),
+                            shadowColor = if (!LanguageManager.isMalay()) SkyShadow else Color(0xFFCBD5E1),
                             modifier = Modifier.weight(1f),
                             height = 50.dp,
                             onClick = {
-                                com.pocketdev.airisgame.core.LanguageManager.currentLanguage = com.pocketdev.airisgame.core.AppLanguage.EN
+                                LanguageManager.currentLanguage = AppLanguage.EN
                                 SpeechEngine.speak("English mode selected!")
                             }
                         )
                         ToddlerButton(
                             text = "Bahasa Melayu",
-                            buttonColor = if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) CandyCoral else Color(0xFFE2E8F0),
-                            shadowColor = if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) CoralShadow else Color(0xFFCBD5E1),
+                            buttonColor = if (LanguageManager.isMalay()) CandyCoral else Color(0xFFE2E8F0),
+                            shadowColor = if (LanguageManager.isMalay()) CoralShadow else Color(0xFFCBD5E1),
                             modifier = Modifier.weight(1f),
                             height = 50.dp,
                             onClick = {
-                                com.pocketdev.airisgame.core.LanguageManager.currentLanguage = com.pocketdev.airisgame.core.AppLanguage.BM
+                                LanguageManager.currentLanguage = AppLanguage.BM
                                 SpeechEngine.speak("Mod Bahasa Melayu dipilih!")
                             }
                         )
@@ -348,7 +489,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Toddler Developmental Guide
+            // 5. Toddler Developmental Guide
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -357,7 +498,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🌱 " + if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Matlamat Pembelajaran (Umur 2 Tahun)" else "Toddler Learning Goals (Age 2)",
+                        text = "🌱 " + if (LanguageManager.isMalay()) "Matlamat Pembelajaran (Umur 2-4 Tahun)" else "Toddler Learning Goals (Age 2-4)",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDark
@@ -366,18 +507,20 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = if (com.pocketdev.airisgame.core.LanguageManager.isMalay())
-                            "• Fonik ABC: Mengenal bentuk huruf dan membina asas sebutan fonik.\n" +
+                        text = if (LanguageManager.isMalay())
+                            "• Fonik ABC & 123 Nombor: Mengenal bentuk huruf, angka, dan membina asas sebutan fonik & mengira.\n" +
                             "• Hijaiyah: Mengenal huruf Arab dan baris Fathah, Kasrah, Dammah.\n" +
-                            "• Padanan Warna: Mengasah diskriminasi visual melalui tarikan magnetik.\n" +
-                            "• Bunyi Haiwan: Menggalakkan peniruan suara dan kepekaan fonologi.\n" +
-                            "• Belon & Telur: Melatih koordinasi tangan-mata dan rasa ingin tahu."
+                            "• Padanan 7 Warna Pelangi: Mengasah diskriminasi visual & tarikan magnetik.\n" +
+                            "• Bunyi Haiwan & Kenderaan: Menggalakkan peniruan suara dan kepekaan fonologi.\n" +
+                            "• Sambung Titik Splin: Melatih kawalan motor halus dan koordinasi pensel.\n" +
+                            "• Skrin Pin Kanak-kanak: Memastikan anak bermain selamat tanpa terkeluar ke sistem telefon."
                         else
-                            "• ABC Phonics: Encourages speech imitation and phonological awareness.\n" +
+                            "• ABC Phonics & 123 Numbers: Encourages speech imitation, counting, and phonological awareness.\n" +
                             "• Hijaiyah: Introduces Arabic alphabet and Fathah, Kasrah, Dammah vowels.\n" +
-                            "• Color Snap: Sharpens visual discrimination with magnetic snapping.\n" +
-                            "• Pop Balloons: Fosters hand-eye coordination and playful discovery.\n" +
-                            "• Xylophone & Eggs: Develops patience, rhythm, and cause-and-effect.",
+                            "• 7-Color Rainbow Snap: Sharpens visual discrimination with magnetic snapping.\n" +
+                            "• Animals & Vehicles: Real sound effects foster imitation and recognition.\n" +
+                            "• Curved Dot-to-Dot: Refines fine-motor pencil control without sharp jagged lines.\n" +
+                            "• Toddler Screen Pinning: Guarantees your toddler cannot accidentally exit to the phone OS.",
                         fontSize = 14.sp,
                         lineHeight = 22.sp,
                         color = Color(0xFF4A5568)
@@ -388,7 +531,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(20.dp))
 
             ToddlerButton(
-                text = if (com.pocketdev.airisgame.core.LanguageManager.isMalay()) "Kembali Bermain" else "Resume Playing",
+                text = if (LanguageManager.isMalay()) "Kembali Bermain" else "Resume Playing",
                 buttonColor = CandyCoral,
                 shadowColor = CoralShadow,
                 modifier = Modifier.fillMaxWidth(),
@@ -396,7 +539,7 @@ fun ParentSettingsScreen(onBack: () -> Unit) {
                 onClick = onBack
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

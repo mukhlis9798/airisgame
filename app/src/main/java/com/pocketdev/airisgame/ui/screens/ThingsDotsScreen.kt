@@ -12,8 +12,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,6 +90,7 @@ data class DotThingInfo(
 @Composable
 fun ThingsDotsScreen(onBack: () -> Unit) {
     val confettiState = rememberConfettiState()
+    val haptic = LocalHapticFeedback.current
     val config = LocalConfiguration.current
     val screenWidth = config.screenWidthDp
     val isTablet = screenWidth >= 600
@@ -277,6 +282,7 @@ fun ThingsDotsScreen(onBack: () -> Unit) {
 
     fun handleConnectDot(dotIndex: Int) {
         if (dotIndex == completedDotsCount) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             completedDotsCount++
             SoundEngine.playPop()
             SoundEngine.playSparkle()
@@ -428,31 +434,37 @@ fun ThingsDotsScreen(onBack: () -> Unit) {
                                 .fillMaxSize()
                                 .padding(24.dp)
                                 .pointerInput(selectedIndex, completedDotsCount) {
-                                    detectTapGestures { tapOffset ->
-                                        val canvasW = size.width
-                                        val canvasH = size.height
-                                        val nextDotIdx = completedDotsCount
-                                        if (nextDotIdx < currentDots.size) {
-                                            val targetPt = currentDots[nextDotIdx]
-                                            val actualPt = Offset(targetPt.x * canvasW, targetPt.y * canvasH)
-                                            val dist = hypot(tapOffset.x - actualPt.x, tapOffset.y - actualPt.y)
-                                            if (dist < 60.dp.toPx()) {
-                                                handleConnectDot(nextDotIdx)
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val down = awaitFirstDown(requireUnconsumed = false)
+                                            val activePointerId = down.id
+                                            val canvasW = size.width
+                                            val canvasH = size.height
+
+                                            fun testPoint(pos: Offset) {
+                                                val nextDotIdx = completedDotsCount
+                                                if (nextDotIdx < currentDots.size) {
+                                                    val targetPt = currentDots[nextDotIdx]
+                                                    val actualPt = Offset(targetPt.x * canvasW, targetPt.y * canvasH)
+                                                    val dist = hypot(pos.x - actualPt.x, pos.y - actualPt.y)
+                                                    if (dist < 60.dp.toPx()) {
+                                                        handleConnectDot(nextDotIdx)
+                                                    }
+                                                }
                                             }
-                                        }
-                                    }
-                                }
-                                .pointerInput(selectedIndex, completedDotsCount) {
-                                    detectDragGestures { change, _ ->
-                                        val canvasW = size.width
-                                        val canvasH = size.height
-                                        val nextDotIdx = completedDotsCount
-                                        if (nextDotIdx < currentDots.size) {
-                                            val targetPt = currentDots[nextDotIdx]
-                                            val actualPt = Offset(targetPt.x * canvasW, targetPt.y * canvasH)
-                                            val dist = hypot(change.position.x - actualPt.x, change.position.y - actualPt.y)
-                                            if (dist < 60.dp.toPx()) {
-                                                handleConnectDot(nextDotIdx)
+
+                                            testPoint(down.position)
+
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                val activeChange = event.changes.firstOrNull { it.id == activePointerId }
+                                                if (activeChange == null || !activeChange.pressed) {
+                                                    break
+                                                }
+                                                if (activeChange.positionChanged()) {
+                                                    testPoint(activeChange.position)
+                                                    activeChange.consume()
+                                                }
                                             }
                                         }
                                     }

@@ -38,7 +38,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +94,7 @@ private class BalloonBurst(
 @Composable
 fun BalloonsScreen(onBack: () -> Unit) {
     val confettiState = rememberConfettiState()
+    val haptic = LocalHapticFeedback.current
     var poppedCount by remember { mutableStateOf(0) }
     var frameTick by remember { mutableStateOf(0L) }
 
@@ -240,6 +243,7 @@ fun BalloonsScreen(onBack: () -> Unit) {
                         }
 
                         if (hitIndex != -1) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             val popped = balloons.removeAt(hitIndex)
                             poppedCount++
                             SoundEngine.playPop()
