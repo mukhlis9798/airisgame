@@ -2,6 +2,7 @@ package com.pocketdev.airisgame.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -23,12 +24,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.pocketdev.airisgame.audio.SoundEngine
 import com.pocketdev.airisgame.core.LanguageManager
 import com.pocketdev.airisgame.ui.theme.CandyCoral
+import com.pocketdev.airisgame.ui.theme.TextDark
 import kotlinx.coroutines.delay
 
+/**
+ * Header Toddler Pinning Lock indicator button.
+ * - Explicit 44.dp size matching design system
+ * - When unlocked: Single tap requests screen pinning
+ * - When locked: Requires continuous 3-second hold to initiate unlock
+ * - Filling circular progress ring over 3000ms with instant cancel on release
+ * - Haptic pulse + Math Challenge Parent Gate on complete hold
+ */
 @Composable
 fun ToddlerLockIndicator(
     isPinned: Boolean,
@@ -41,9 +53,11 @@ fun ToddlerLockIndicator(
     var holdProgress by remember { mutableStateOf(0f) }
     var showMathGate by remember { mutableStateOf(false) }
 
-    val animatedProgress by animateFloatAsState(targetValue = holdProgress)
+    val animatedProgress by animateFloatAsState(
+        targetValue = holdProgress
+    )
 
-    // 3000ms hold timer
+    // Continuous 3000ms hold timer
     LaunchedEffect(isHolding) {
         if (isHolding) {
             val startTime = System.currentTimeMillis()
@@ -59,7 +73,7 @@ fun ToddlerLockIndicator(
                     showMathGate = true
                     break
                 }
-                delay(30L)
+                delay(25L)
             }
         } else {
             holdProgress = 0f
@@ -70,10 +84,14 @@ fun ToddlerLockIndicator(
         modifier = modifier
             .size(44.dp)
             .clip(CircleShape)
-            // Low-contrast semi-transparent padlock that does not distract toddlers
             .background(
-                if (isPinned) Color.Black.copy(alpha = 0.12f)
-                else Color.White.copy(alpha = 0.25f)
+                if (isPinned) Color(0xFFFEE2E2)
+                else Color.White.copy(alpha = 0.94f)
+            )
+            .border(
+                1.5.dp,
+                if (isPinned) Color(0xFFFCA5A5) else Color(0xFFE2E8F0),
+                CircleShape
             )
             .pointerInput(isPinned) {
                 if (isPinned) {
@@ -87,33 +105,41 @@ fun ToddlerLockIndicator(
                 } else {
                     detectTapGestures(
                         onTap = {
+                            SoundEngine.playPop()
                             onLockRequested()
                         }
                     )
+                }
+            }
+            .semantics {
+                contentDescription = if (isPinned) {
+                    "Screen Pinned. Hold for 3 seconds to unlock"
+                } else {
+                    "Pin screen to prevent toddler exiting"
                 }
             },
         contentAlignment = Alignment.Center
     ) {
         if (isPinned) {
-            if (isHolding) {
+            if (isHolding || animatedProgress > 0.01f) {
                 CircularProgressIndicator(
                     progress = animatedProgress,
                     modifier = Modifier.size(42.dp),
                     color = CandyCoral,
-                    strokeWidth = 3.dp
+                    strokeWidth = 3.5.dp
                 )
             }
             Icon(
                 imageVector = Icons.Rounded.Lock,
-                contentDescription = "Screen Pinned. Hold 3s to unlock",
-                tint = if (isHolding) CandyCoral else Color.White.copy(alpha = 0.55f),
+                contentDescription = null,
+                tint = if (isHolding) CandyCoral else Color(0xFFDC2626),
                 modifier = Modifier.size(20.dp)
             )
         } else {
             Icon(
                 imageVector = Icons.Rounded.Lock,
-                contentDescription = "Pin Screen for Toddler",
-                tint = Color.White.copy(alpha = 0.35f),
+                contentDescription = null,
+                tint = TextDark.copy(alpha = 0.55f),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -122,9 +148,15 @@ fun ToddlerLockIndicator(
     if (showMathGate) {
         ParentMathGateDialog(
             title = if (LanguageManager.isMalay()) "Buka Kunci Skrin Pin" else "Unlock Screen Pinning",
-            onDismiss = { showMathGate = false },
+            onDismiss = {
+                showMathGate = false
+                isHolding = false
+                holdProgress = 0f
+            },
             onSuccess = {
                 showMathGate = false
+                isHolding = false
+                holdProgress = 0f
                 onUnlockConfirmed()
             }
         )

@@ -241,10 +241,7 @@ fun HomeScreen(
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             val configuration = LocalConfiguration.current
             val screenWidth = configuration.screenWidthDp
@@ -263,7 +260,7 @@ fun HomeScreen(
                     AppIconButton(
                         icon = Icons.Rounded.Settings,
                         contentDescription = "Parent Settings",
-                        size = 38.dp,
+                        size = 44.dp,
                         iconSize = 22.dp,
                         onClick = {
                             SoundEngine.playSparkle()
@@ -273,14 +270,15 @@ fun HomeScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Activities Grid (Responsive Columns: 2 for phone, 3-4 for tablet/landscape)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)

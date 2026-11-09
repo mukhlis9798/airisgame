@@ -179,10 +179,7 @@ fun XylophoneScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Universal Header with integrated Language Switcher and Sound Settings Button
@@ -294,6 +291,7 @@ fun XylophoneScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(Color.White.copy(alpha = 0.88f))
                     .padding(horizontal = 10.dp, vertical = 14.dp),

@@ -260,10 +260,7 @@ fun TransportationScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             // Universal Header with integrated Language Toggle & Audio Settings
             ToddlerAppHeader(
@@ -288,12 +285,13 @@ fun TransportationScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Cheerful Banner
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White.copy(alpha = 0.94f))
                     .padding(vertical = 10.dp, horizontal = 16.dp),
@@ -308,14 +306,15 @@ fun TransportationScreen(onBack: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Vehicles Grid (Responsive 2 to 4 Columns)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -282,16 +283,17 @@ fun ModePillButton(
     Box(
         modifier = modifier
             .scale(scale)
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(22.dp))
             .background(if (isActive) SunnyYellow else Color.White)
+            .border(1.5.dp, if (isActive) SunnyYellow else Color(0xFFE2E8F0), RoundedCornerShape(22.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
             ) {
                 onClick()
             }
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp)
             .semantics { contentDescription = if (isActive) activeText else inactiveText },
         contentAlignment = Alignment.Center
     ) {

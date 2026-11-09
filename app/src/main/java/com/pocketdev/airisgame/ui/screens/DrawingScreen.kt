@@ -186,34 +186,27 @@ fun DrawingScreen(onBack: () -> Unit) {
         }
 
         // Header with Clean Canvas Action Button
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-        ) {
-            ToddlerAppHeader(
-                title = LanguageManager.drawingTitle(),
-                subtitle = LanguageManager.drawingSubtitle(),
-                onBack = onBack,
-                actionSlot = {
-                    AppIconButton(
-                        icon = Icons.Rounded.Delete,
-                        contentDescription = LanguageManager.clear(),
-                        size = 38.dp,
-                        iconSize = 22.dp,
-                        onClick = {
-                            SoundEngine.playPop()
-                            SpeechEngine.speak(
-                                if (LanguageManager.isMalay()) "Kanvas bersih!" else "Clean canvas!"
-                            )
-                            offscreenBitmap?.eraseColor(android.graphics.Color.TRANSPARENT)
-                            drawRevision++
-                        }
-                    )
-                }
-            )
-        }
+        ToddlerAppHeader(
+            title = LanguageManager.drawingTitle(),
+            subtitle = LanguageManager.drawingSubtitle(),
+            onBack = onBack,
+            actionSlot = {
+                AppIconButton(
+                    icon = Icons.Rounded.Delete,
+                    contentDescription = LanguageManager.clear(),
+                    size = 44.dp,
+                    iconSize = 22.dp,
+                    onClick = {
+                        SoundEngine.playPop()
+                        SpeechEngine.speak(
+                            if (LanguageManager.isMalay()) "Kanvas bersih!" else "Clean canvas!"
+                        )
+                        offscreenBitmap?.eraseColor(android.graphics.Color.TRANSPARENT)
+                        drawRevision++
+                    }
+                )
+            }
+        )
 
         // Bottom Palette & Brush Selector
         Column(

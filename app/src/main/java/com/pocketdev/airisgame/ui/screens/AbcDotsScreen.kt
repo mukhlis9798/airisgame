@@ -1,25 +1,20 @@
 package com.pocketdev.airisgame.ui.screens
 
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,10 +23,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -56,11 +49,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -74,25 +71,19 @@ import com.pocketdev.airisgame.ui.components.ToddlerButton
 import com.pocketdev.airisgame.ui.components.rememberConfettiState
 import com.pocketdev.airisgame.ui.theme.CandyCoral
 import com.pocketdev.airisgame.ui.theme.CoralShadow
-import com.pocketdev.airisgame.ui.theme.MagicLavender
 import com.pocketdev.airisgame.ui.theme.SkyGradient
-import com.pocketdev.airisgame.ui.theme.SkyShadow
 import com.pocketdev.airisgame.ui.theme.SkyVibrant
 import com.pocketdev.airisgame.ui.theme.SunnyYellow
 import com.pocketdev.airisgame.ui.theme.TextDark
 import kotlin.math.hypot
 
-data class DotLetterInfo(
+data class LetterStrokeData(
     val letter: Char,
     val enWord: String,
     val bmWord: String,
     val emoji: String,
-    val capitalDots: List<Offset>,
-    val smallDots: List<Offset>,
-    val isCapitalCurved: Boolean = false,
-    val isSmallCurved: Boolean = false,
-    val capitalStraightIndices: Set<Int> = emptySet(),
-    val smallStraightIndices: Set<Int> = emptySet()
+    val capitalStrokes: List<List<Offset>>,
+    val smallStrokes: List<List<Offset>>
 )
 
 @Composable
@@ -105,262 +96,38 @@ fun AbcDotsScreen(onBack: () -> Unit) {
 
     var isCapital by remember { mutableStateOf(true) }
     var selectedLetterIndex by remember { mutableStateOf(0) }
-    var completedDotsCount by remember { mutableStateOf(0) }
+    var currentStrokeIndex by remember { mutableStateOf(0) }
     var isCompleted by remember { mutableStateOf(false) }
+
+    // User's currently active live trace points on screen
+    val userLiveTrace = remember { mutableStateListOf<Offset>() }
+    // Which normalized points in the active stroke have been covered by the toddler's finger
+    val coveredPoints = remember { mutableStateListOf<Int>() }
 
     val infiniteTransition = rememberInfiniteTransition()
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.32f,
+        targetValue = 1.25f,
         animationSpec = infiniteRepeatable(
             animation = tween(650, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         )
     )
 
-    val letters = remember {
-        listOf(
-            // A: Capital is straight, Small is curved around belly
-            DotLetterInfo('A', "Apple", "Ayam", "🍎",
-                capitalDots = listOf(Offset(0.18f, 0.85f), Offset(0.50f, 0.15f), Offset(0.82f, 0.85f), Offset(0.66f, 0.58f), Offset(0.34f, 0.58f)),
-                smallDots = listOf(Offset(0.68f, 0.40f), Offset(0.48f, 0.36f), Offset(0.28f, 0.58f), Offset(0.48f, 0.80f), Offset(0.68f, 0.72f), Offset(0.68f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(4)
-            ),
-            // B: Capital has straight spine + curved bumps; Small has straight stem + curved belly
-            DotLetterInfo('B', "Ball", "Bola", "⚽",
-                capitalDots = listOf(Offset(0.25f, 0.85f), Offset(0.25f, 0.15f), Offset(0.68f, 0.28f), Offset(0.35f, 0.50f), Offset(0.72f, 0.68f), Offset(0.25f, 0.85f)),
-                smallDots = listOf(Offset(0.30f, 0.15f), Offset(0.30f, 0.85f), Offset(0.52f, 0.85f), Offset(0.72f, 0.68f), Offset(0.52f, 0.50f), Offset(0.30f, 0.55f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0),
-                smallStraightIndices = setOf(0)
-            ),
-            // C: Curved open loop
-            DotLetterInfo('C', "Cat", "Cawan", "🐱",
-                capitalDots = listOf(Offset(0.76f, 0.26f), Offset(0.48f, 0.16f), Offset(0.25f, 0.50f), Offset(0.48f, 0.84f), Offset(0.76f, 0.74f)),
-                smallDots = listOf(Offset(0.72f, 0.44f), Offset(0.48f, 0.38f), Offset(0.28f, 0.60f), Offset(0.48f, 0.82f), Offset(0.72f, 0.76f)),
-                isCapitalCurved = true,
-                isSmallCurved = true
-            ),
-            // D: Capital has straight spine + curved belly; Small has curved belly + straight stem
-            DotLetterInfo('D', "Duck", "Daun", "🦆",
-                capitalDots = listOf(Offset(0.25f, 0.85f), Offset(0.25f, 0.15f), Offset(0.65f, 0.28f), Offset(0.75f, 0.50f), Offset(0.65f, 0.72f), Offset(0.25f, 0.85f)),
-                smallDots = listOf(Offset(0.70f, 0.55f), Offset(0.50f, 0.50f), Offset(0.28f, 0.68f), Offset(0.50f, 0.85f), Offset(0.70f, 0.85f), Offset(0.70f, 0.15f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0),
-                smallStraightIndices = setOf(4)
-            ),
-            // E: Capital is straight; Small has straight bar + curved loop
-            DotLetterInfo('E', "Elephant", "Epal", "🐘",
-                capitalDots = listOf(Offset(0.75f, 0.18f), Offset(0.28f, 0.18f), Offset(0.28f, 0.50f), Offset(0.65f, 0.50f), Offset(0.28f, 0.50f), Offset(0.28f, 0.82f), Offset(0.75f, 0.82f)),
-                smallDots = listOf(Offset(0.30f, 0.60f), Offset(0.70f, 0.60f), Offset(0.65f, 0.40f), Offset(0.45f, 0.38f), Offset(0.28f, 0.60f), Offset(0.48f, 0.82f), Offset(0.70f, 0.78f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(0)
-            ),
-            // F: Capital is straight; Small has curved hook + straight stem/bar
-            DotLetterInfo('F', "Fish", "Feri", "🐟",
-                capitalDots = listOf(Offset(0.28f, 0.85f), Offset(0.28f, 0.48f), Offset(0.65f, 0.48f), Offset(0.28f, 0.48f), Offset(0.28f, 0.18f), Offset(0.78f, 0.18f)),
-                smallDots = listOf(Offset(0.65f, 0.20f), Offset(0.45f, 0.18f), Offset(0.45f, 0.85f), Offset(0.25f, 0.45f), Offset(0.68f, 0.45f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(1, 3)
-            ),
-            // G: Capital is curved + straight bar; Small is curved loop
-            DotLetterInfo('G', "Giraffe", "Gajah", "🦒",
-                capitalDots = listOf(Offset(0.78f, 0.28f), Offset(0.50f, 0.15f), Offset(0.25f, 0.50f), Offset(0.48f, 0.85f), Offset(0.78f, 0.80f), Offset(0.78f, 0.52f), Offset(0.55f, 0.52f)),
-                smallDots = listOf(Offset(0.68f, 0.42f), Offset(0.38f, 0.40f), Offset(0.28f, 0.60f), Offset(0.48f, 0.78f), Offset(0.68f, 0.60f), Offset(0.68f, 0.90f), Offset(0.42f, 0.95f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(5)
-            ),
-            // H: Capital straight; Small has straight stem + curved arch
-            DotLetterInfo('H', "Horse", "Harimau", "🐴",
-                capitalDots = listOf(Offset(0.25f, 0.15f), Offset(0.25f, 0.85f), Offset(0.25f, 0.50f), Offset(0.75f, 0.50f), Offset(0.75f, 0.15f), Offset(0.75f, 0.85f)),
-                smallDots = listOf(Offset(0.28f, 0.15f), Offset(0.28f, 0.85f), Offset(0.28f, 0.50f), Offset(0.55f, 0.42f), Offset(0.72f, 0.60f), Offset(0.72f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(0, 1)
-            ),
-            // I: Straight lines
-            DotLetterInfo('I', "Ice Cream", "Ikan", "🍦",
-                capitalDots = listOf(Offset(0.30f, 0.18f), Offset(0.70f, 0.18f), Offset(0.50f, 0.18f), Offset(0.50f, 0.82f), Offset(0.30f, 0.82f), Offset(0.70f, 0.82f)),
-                smallDots = listOf(Offset(0.50f, 0.22f), Offset(0.50f, 0.42f), Offset(0.50f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // J: Straight top + curved hook
-            DotLetterInfo('J', "Juice", "Jam", "🧃",
-                capitalDots = listOf(Offset(0.32f, 0.18f), Offset(0.75f, 0.18f), Offset(0.65f, 0.18f), Offset(0.65f, 0.65f), Offset(0.48f, 0.85f), Offset(0.28f, 0.75f)),
-                smallDots = listOf(Offset(0.60f, 0.22f), Offset(0.60f, 0.42f), Offset(0.60f, 0.78f), Offset(0.40f, 0.90f), Offset(0.25f, 0.80f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0, 1)
-            ),
-            // K: Straight lines
-            DotLetterInfo('K', "Kite", "Kucing", "🪁",
-                capitalDots = listOf(Offset(0.28f, 0.15f), Offset(0.28f, 0.85f), Offset(0.75f, 0.20f), Offset(0.28f, 0.50f), Offset(0.78f, 0.85f)),
-                smallDots = listOf(Offset(0.30f, 0.15f), Offset(0.30f, 0.85f), Offset(0.68f, 0.45f), Offset(0.30f, 0.62f), Offset(0.72f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // L: Straight lines
-            DotLetterInfo('L', "Lion", "Lembu", "🦁",
-                capitalDots = listOf(Offset(0.30f, 0.15f), Offset(0.30f, 0.85f), Offset(0.75f, 0.85f)),
-                smallDots = listOf(Offset(0.50f, 0.15f), Offset(0.50f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // M: Capital straight; Small curved arches
-            DotLetterInfo('M', "Monkey", "Monyet", "🐵",
-                capitalDots = listOf(Offset(0.20f, 0.85f), Offset(0.20f, 0.18f), Offset(0.50f, 0.58f), Offset(0.80f, 0.18f), Offset(0.80f, 0.85f)),
-                smallDots = listOf(Offset(0.22f, 0.85f), Offset(0.22f, 0.45f), Offset(0.48f, 0.45f), Offset(0.48f, 0.85f), Offset(0.48f, 0.45f), Offset(0.78f, 0.45f), Offset(0.78f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(0, 2, 4)
-            ),
-            // N: Capital straight; Small curved arch
-            DotLetterInfo('N', "Nest", "Nanas", "🪺",
-                capitalDots = listOf(Offset(0.25f, 0.85f), Offset(0.25f, 0.18f), Offset(0.75f, 0.85f), Offset(0.75f, 0.18f)),
-                smallDots = listOf(Offset(0.28f, 0.85f), Offset(0.28f, 0.45f), Offset(0.55f, 0.42f), Offset(0.72f, 0.60f), Offset(0.72f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(0)
-            ),
-            // O: Closed smooth circle
-            DotLetterInfo('O', "Orange", "Oren", "🍊",
-                capitalDots = listOf(Offset(0.50f, 0.15f), Offset(0.22f, 0.50f), Offset(0.50f, 0.85f), Offset(0.78f, 0.50f), Offset(0.50f, 0.15f)),
-                smallDots = listOf(Offset(0.50f, 0.40f), Offset(0.28f, 0.62f), Offset(0.50f, 0.85f), Offset(0.72f, 0.62f), Offset(0.50f, 0.40f)),
-                isCapitalCurved = true,
-                isSmallCurved = true
-            ),
-            // P: Straight spine + curved loop
-            DotLetterInfo('P', "Penguin", "Pisang", "🐧",
-                capitalDots = listOf(Offset(0.28f, 0.85f), Offset(0.28f, 0.18f), Offset(0.68f, 0.22f), Offset(0.72f, 0.45f), Offset(0.28f, 0.52f)),
-                smallDots = listOf(Offset(0.30f, 0.40f), Offset(0.30f, 0.95f), Offset(0.65f, 0.45f), Offset(0.70f, 0.65f), Offset(0.30f, 0.72f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0),
-                smallStraightIndices = setOf(0)
-            ),
-            // Q: Oval + tail
-            DotLetterInfo('Q', "Queen", "Quran", "👑",
-                capitalDots = listOf(Offset(0.50f, 0.15f), Offset(0.22f, 0.50f), Offset(0.50f, 0.85f), Offset(0.78f, 0.50f), Offset(0.50f, 0.15f), Offset(0.58f, 0.68f), Offset(0.82f, 0.88f)),
-                smallDots = listOf(Offset(0.68f, 0.40f), Offset(0.38f, 0.42f), Offset(0.28f, 0.62f), Offset(0.50f, 0.80f), Offset(0.68f, 0.62f), Offset(0.68f, 0.95f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(5),
-                smallStraightIndices = setOf(4)
-            ),
-            // R: Straight spine + curved top loop + straight leg
-            DotLetterInfo('R', "Rabbit", "Rusa", "🐰",
-                capitalDots = listOf(Offset(0.25f, 0.85f), Offset(0.25f, 0.18f), Offset(0.68f, 0.22f), Offset(0.68f, 0.48f), Offset(0.25f, 0.52f), Offset(0.75f, 0.85f)),
-                smallDots = listOf(Offset(0.35f, 0.85f), Offset(0.35f, 0.45f), Offset(0.55f, 0.40f), Offset(0.75f, 0.48f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0, 4),
-                smallStraightIndices = setOf(0)
-            ),
-            // S: Smooth S-curve
-            DotLetterInfo('S', "Sun", "Singa", "☀️",
-                capitalDots = listOf(Offset(0.75f, 0.28f), Offset(0.50f, 0.15f), Offset(0.28f, 0.35f), Offset(0.50f, 0.50f), Offset(0.72f, 0.65f), Offset(0.48f, 0.85f), Offset(0.25f, 0.75f)),
-                smallDots = listOf(Offset(0.70f, 0.48f), Offset(0.50f, 0.40f), Offset(0.35f, 0.52f), Offset(0.52f, 0.65f), Offset(0.68f, 0.75f), Offset(0.48f, 0.85f), Offset(0.30f, 0.78f)),
-                isCapitalCurved = true,
-                isSmallCurved = true
-            ),
-            // T: Straight lines
-            DotLetterInfo('T', "Tiger", "Topi", "🐯",
-                capitalDots = listOf(Offset(0.20f, 0.18f), Offset(0.80f, 0.18f), Offset(0.50f, 0.18f), Offset(0.50f, 0.85f)),
-                smallDots = listOf(Offset(0.45f, 0.18f), Offset(0.45f, 0.82f), Offset(0.65f, 0.85f), Offset(0.28f, 0.42f), Offset(0.68f, 0.42f)),
-                isCapitalCurved = false,
-                isSmallCurved = true,
-                smallStraightIndices = setOf(0, 2)
-            ),
-            // U: U-curve
-            DotLetterInfo('U', "Umbrella", "Udang", "☂️",
-                capitalDots = listOf(Offset(0.25f, 0.18f), Offset(0.25f, 0.68f), Offset(0.50f, 0.85f), Offset(0.75f, 0.68f), Offset(0.75f, 0.18f)),
-                smallDots = listOf(Offset(0.30f, 0.42f), Offset(0.30f, 0.72f), Offset(0.52f, 0.85f), Offset(0.70f, 0.72f), Offset(0.70f, 0.42f), Offset(0.70f, 0.85f)),
-                isCapitalCurved = true,
-                isSmallCurved = true,
-                capitalStraightIndices = setOf(0, 3)
-            ),
-            // V: Straight V-shape
-            DotLetterInfo('V', "Van", "Van", "🚐",
-                capitalDots = listOf(Offset(0.22f, 0.18f), Offset(0.50f, 0.85f), Offset(0.78f, 0.18f)),
-                smallDots = listOf(Offset(0.28f, 0.42f), Offset(0.50f, 0.85f), Offset(0.72f, 0.42f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // W: Straight W-shape
-            DotLetterInfo('W', "Whale", "Wau", "🐋",
-                capitalDots = listOf(Offset(0.18f, 0.18f), Offset(0.35f, 0.85f), Offset(0.50f, 0.45f), Offset(0.65f, 0.85f), Offset(0.82f, 0.18f)),
-                smallDots = listOf(Offset(0.22f, 0.42f), Offset(0.38f, 0.85f), Offset(0.50f, 0.58f), Offset(0.62f, 0.85f), Offset(0.78f, 0.42f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // X: Straight lines
-            DotLetterInfo('X', "Xylophone", "Xilofon", "🎹",
-                capitalDots = listOf(Offset(0.22f, 0.18f), Offset(0.78f, 0.85f), Offset(0.50f, 0.51f), Offset(0.78f, 0.18f), Offset(0.22f, 0.85f)),
-                smallDots = listOf(Offset(0.28f, 0.42f), Offset(0.72f, 0.85f), Offset(0.50f, 0.63f), Offset(0.72f, 0.42f), Offset(0.28f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // Y: Straight lines
-            DotLetterInfo('Y', "Yacht", "Yo-yo", "⛵",
-                capitalDots = listOf(Offset(0.22f, 0.18f), Offset(0.50f, 0.50f), Offset(0.78f, 0.18f), Offset(0.50f, 0.50f), Offset(0.50f, 0.85f)),
-                smallDots = listOf(Offset(0.28f, 0.42f), Offset(0.50f, 0.70f), Offset(0.72f, 0.42f), Offset(0.50f, 0.70f), Offset(0.40f, 0.95f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            ),
-            // Z: Straight lines
-            DotLetterInfo('Z', "Zebra", "Zirafah", "🦓",
-                capitalDots = listOf(Offset(0.25f, 0.18f), Offset(0.75f, 0.18f), Offset(0.25f, 0.85f), Offset(0.75f, 0.85f)),
-                smallDots = listOf(Offset(0.30f, 0.45f), Offset(0.70f, 0.45f), Offset(0.30f, 0.85f), Offset(0.70f, 0.85f)),
-                isCapitalCurved = false,
-                isSmallCurved = false
-            )
-        )
-    }
+    val letters = remember { getEducationalLetters() }
+    val currentItem = letters[selectedLetterIndex.coerceIn(0, letters.lastIndex)]
+    val activeStrokes = if (isCapital) currentItem.capitalStrokes else currentItem.smallStrokes
 
-    val currentItem = letters[selectedLetterIndex]
-    val currentDots = if (isCapital) currentItem.capitalDots else currentItem.smallDots
-    val letterDisplay = if (isCapital) currentItem.letter.uppercaseChar() else currentItem.letter.lowercaseChar()
-    val word = if (LanguageManager.isMalay()) currentItem.bmWord else currentItem.enWord
-
-    // Reset when letter or mode changes
+    // Reset tracing state when letter or case changes
     LaunchedEffect(selectedLetterIndex, isCapital) {
-        completedDotsCount = 0
+        currentStrokeIndex = 0
         isCompleted = false
-        SpeechEngine.speak(
-            if (LanguageManager.isMalay())
-                "Sambung titik untuk huruf $letterDisplay!"
-            else
-                "Connect the dots for letter $letterDisplay!"
-        )
-    }
+        userLiveTrace.clear()
+        coveredPoints.clear()
 
-    fun handleConnectDot(dotIndex: Int) {
-        if (dotIndex == completedDotsCount) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            completedDotsCount++
-            SoundEngine.playPop()
-            SoundEngine.playSparkle()
-
-            if (completedDotsCount >= currentDots.size) {
-                isCompleted = true
-                SoundEngine.playCelebrationFanfare()
-                confettiState.spawn(300f, 300f, 45)
-                SpeechEngine.speak(
-                    if (LanguageManager.isMalay())
-                        "Hebat! Huruf $letterDisplay! $letterDisplay untuk $word! ${currentItem.emoji}"
-                    else
-                        "Awesome! Letter $letterDisplay! $letterDisplay is for $word! ${currentItem.emoji}"
-                )
-            }
-        }
+        val charShow = if (isCapital) currentItem.letter.uppercaseChar() else currentItem.letter.lowercaseChar()
+        val word = if (LanguageManager.isMalay()) currentItem.bmWord else currentItem.enWord
+        SpeechEngine.speak("$charShow. $word")
     }
 
     Box(
@@ -369,27 +136,23 @@ fun AbcDotsScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Header with language and sound button
+            // Header with non-overlapping Row (Back, Title, Lang, Sound, Lock)
             ToddlerAppHeader(
                 title = LanguageManager.abcDotsTitle(),
                 subtitle = LanguageManager.abcDotsSubtitle(),
                 onBack = onBack
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // TOP ROW: Capital vs Small Letter Toggle Pills
+            // Case Toggle Pills (Capital / Small)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Capital Option Pill
                 LetterCasePill(
                     text = LanguageManager.capitalLetters(),
                     isActive = isCapital,
@@ -402,9 +165,8 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                     }
                 )
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                // Small Option Pill
                 LetterCasePill(
                     text = LanguageManager.smallLetters(),
                     isActive = !isCapital,
@@ -418,11 +180,13 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Quick Scrollable Alphabet Selector Bar
+            // Quick Scrollable Alphabet Selector Bar (A to Z)
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 itemsIndexed(letters) { index, item ->
@@ -433,7 +197,10 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .size(if (isTablet) 46.dp else 40.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) (if (isCapital) SkyVibrant else CandyCoral) else Color.White.copy(alpha = 0.9f))
+                            .background(
+                                if (isSelected) (if (isCapital) SkyVibrant else CandyCoral)
+                                else Color.White.copy(alpha = 0.92f)
+                            )
                             .border(
                                 1.5.dp,
                                 if (isSelected) Color.White else Color(0xFFE2E8F0),
@@ -457,13 +224,14 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // CENTER: Interactive Canvas Card
+            // CENTER: Tracing Card with Authentic Typography Stencil & Freeform Tracing Canvas
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -472,12 +240,13 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Canvas with Dots and Tracing Lines
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(24.dp)
-                            .pointerInput(selectedLetterIndex, isCapital, completedDotsCount) {
+                            .padding(20.dp)
+                            .pointerInput(selectedLetterIndex, isCapital, currentStrokeIndex, isCompleted) {
+                                if (isCompleted) return@pointerInput
+
                                 awaitPointerEventScope {
                                     while (true) {
                                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -485,29 +254,64 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                                         val canvasW = size.width
                                         val canvasH = size.height
 
-                                        fun testPoint(pos: Offset) {
-                                            val nextDotIdx = completedDotsCount
-                                            if (nextDotIdx < currentDots.size) {
-                                                val targetPt = currentDots[nextDotIdx]
-                                                val actualPt = Offset(targetPt.x * canvasW, targetPt.y * canvasH)
+                                        if (currentStrokeIndex >= activeStrokes.size) break
+                                        val targetStroke = activeStrokes[currentStrokeIndex]
+                                        val hitTolerancePx = 38.dp.toPx()
+
+                                        fun processTouch(pos: Offset) {
+                                            userLiveTrace.add(pos)
+                                            // Check distance to all points along the target educational stroke
+                                            targetStroke.forEachIndexed { ptIdx, normPt ->
+                                                val actualPt = Offset(normPt.x * canvasW, normPt.y * canvasH)
                                                 val dist = hypot(pos.x - actualPt.x, pos.y - actualPt.y)
-                                                if (dist < 60.dp.toPx()) {
-                                                    handleConnectDot(nextDotIdx)
+                                                if (dist < hitTolerancePx && !coveredPoints.contains(ptIdx)) {
+                                                    coveredPoints.add(ptIdx)
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                }
+                                            }
+
+                                            // Stroke completed when >= 70% of points covered, or start and end both touched
+                                            val isStrokeComplete = (coveredPoints.size.toFloat() / targetStroke.size) >= 0.70f ||
+                                                    (coveredPoints.contains(0) && coveredPoints.contains(targetStroke.lastIndex) && coveredPoints.size >= 2)
+
+                                            if (isStrokeComplete) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                SoundEngine.playSparkle()
+                                                userLiveTrace.clear()
+                                                coveredPoints.clear()
+                                                currentStrokeIndex++
+
+                                                if (currentStrokeIndex >= activeStrokes.size) {
+                                                    isCompleted = true
+                                                    SoundEngine.playCelebrationFanfare()
+                                                    confettiState.spawn(300f, 300f, 45)
+                                                    val letterChar = if (isCapital) currentItem.letter.uppercaseChar() else currentItem.letter.lowercaseChar()
+                                                    val word = if (LanguageManager.isMalay()) currentItem.bmWord else currentItem.enWord
+                                                    SpeechEngine.speak(
+                                                        if (LanguageManager.isMalay())
+                                                            "Hebat! Huruf $letterChar! $letterChar untuk $word! ${currentItem.emoji}"
+                                                        else
+                                                            "Awesome! Letter $letterChar! $letterChar is for $word! ${currentItem.emoji}"
+                                                    )
                                                 }
                                             }
                                         }
 
-                                        testPoint(down.position)
+                                        processTouch(down.position)
 
                                         while (true) {
                                             val event = awaitPointerEvent()
-                                            val activeChange = event.changes.firstOrNull { it.id == activePointerId }
-                                            if (activeChange == null || !activeChange.pressed) {
+                                            val change = event.changes.firstOrNull { it.id == activePointerId }
+                                            if (change == null || !change.pressed) {
+                                                userLiveTrace.clear()
                                                 break
                                             }
-                                            if (activeChange.positionChanged()) {
-                                                testPoint(activeChange.position)
-                                                activeChange.consume()
+                                            if (change.positionChanged()) {
+                                                processTouch(change.position)
+                                                change.consume()
+                                            }
+                                            if (isCompleted || currentStrokeIndex >= activeStrokes.size) {
+                                                break
                                             }
                                         }
                                     }
@@ -516,81 +320,124 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                     ) {
                         val w = size.width
                         val h = size.height
+                        val letterChar = if (isCapital) currentItem.letter.uppercaseChar() else currentItem.letter.lowercaseChar()
+                        val letterStr = letterChar.toString()
 
-                        val isCurrentCurved = if (isCapital) currentItem.isCapitalCurved else currentItem.isSmallCurved
-                        val currentStraightIndices = if (isCapital) currentItem.capitalStraightIndices else currentItem.smallStraightIndices
+                        // 1. FAINT AUTHENTIC LETTER STENCIL BACKGROUND (alpha = 0.12f)
+                        drawIntoCanvas { canvas ->
+                            val paint = Paint().apply {
+                                color = android.graphics.Color.BLACK
+                                alpha = (255 * 0.12f).toInt()
+                                textSize = size.minDimension * 0.82f
+                                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                                textAlign = Paint.Align.CENTER
+                                isAntiAlias = true
+                            }
+                            val bounds = Rect()
+                            paint.getTextBounds(letterStr, 0, letterStr.length, bounds)
+                            val textY = (h / 2f) + (bounds.height() / 2f) - bounds.bottom
+                            canvas.nativeCanvas.drawText(letterStr, w / 2f, textY, paint)
+                        }
 
-                        // 1. Draw dashed guide outline connecting dots
-                        if (currentDots.size > 1) {
-                            val guidePath = buildSmoothPath(
-                                dots = currentDots,
-                                w = w,
-                                h = h,
-                                count = currentDots.size,
-                                isCurved = isCurrentCurved,
-                                straightIndices = currentStraightIndices
-                            )
+                        // 2. UNTRACED STROKES AS PROMINENT DASHED OUTLINES (dash 20f, 15f)
+                        activeStrokes.forEachIndexed { strokeIdx, strokePts ->
+                            if (strokeIdx >= currentStrokeIndex && strokePts.size > 1) {
+                                val dashedPath = Path().apply {
+                                    val start = Offset(strokePts[0].x * w, strokePts[0].y * h)
+                                    moveTo(start.x, start.y)
+                                    for (i in 1 until strokePts.size) {
+                                        val p = Offset(strokePts[i].x * w, strokePts[i].y * h)
+                                        lineTo(p.x, p.y)
+                                    }
+                                }
+                                drawPath(
+                                    path = dashedPath,
+                                    color = Color(0xFFCBD5E1),
+                                    style = Stroke(
+                                        width = 12.dp.toPx(),
+                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(20f, 15f), 0f),
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
+                                )
+                            }
+                        }
+
+                        // 3. COMPLETED STROKES LOCKED INTO SOLID VIBRANT COLORED LINES
+                        activeStrokes.forEachIndexed { strokeIdx, strokePts ->
+                            if (strokeIdx < currentStrokeIndex && strokePts.size > 1) {
+                                val solidPath = Path().apply {
+                                    val start = Offset(strokePts[0].x * w, strokePts[0].y * h)
+                                    moveTo(start.x, start.y)
+                                    for (i in 1 until strokePts.size) {
+                                        val p = Offset(strokePts[i].x * w, strokePts[i].y * h)
+                                        lineTo(p.x, p.y)
+                                    }
+                                }
+                                drawPath(
+                                    path = solidPath,
+                                    color = if (isCapital) SkyVibrant else CandyCoral,
+                                    style = Stroke(
+                                        width = 24.dp.toPx(),
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    )
+                                )
+                            }
+                        }
+
+                        // 4. ACTIVE LIVE TRACE DRAWN AS THICK SOLID STROKE IN REAL-TIME
+                        if (userLiveTrace.size > 1 && currentStrokeIndex < activeStrokes.size) {
+                            val livePath = Path().apply {
+                                moveTo(userLiveTrace[0].x, userLiveTrace[0].y)
+                                for (i in 1 until userLiveTrace.size) {
+                                    lineTo(userLiveTrace[i].x, userLiveTrace[i].y)
+                                }
+                            }
                             drawPath(
-                                path = guidePath,
-                                color = Color(0xFFCBD5E1),
+                                path = livePath,
+                                color = (if (isCapital) SkyVibrant else CandyCoral).copy(alpha = 0.85f),
                                 style = Stroke(
-                                    width = 3.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f),
-                                    cap = StrokeCap.Round
+                                    width = 24.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
                                 )
                             )
                         }
 
-                        // 2. Draw connected solid strokes between completed dots
-                        if (completedDotsCount > 1) {
-                            val strokePath = buildSmoothPath(
-                                dots = currentDots,
-                                w = w,
-                                h = h,
-                                count = completedDotsCount,
-                                isCurved = isCurrentCurved,
-                                straightIndices = currentStraightIndices
-                            )
-                            drawPath(
-                                path = strokePath,
-                                color = if (isCapital) SkyVibrant else CandyCoral,
-                                style = Stroke(
-                                    width = 7.dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            )
-                        }
-
-                        // 3. Draw dots
-                        currentDots.forEachIndexed { index, normPt ->
-                            val pt = Offset(normPt.x * w, normPt.y * h)
-                            val isConnected = index < completedDotsCount
-                            val isNext = index == completedDotsCount
-
-                            if (isNext) {
-                                // Pulsating glow circle on the next dot to connect
+                        // 5. PULSATING START GUIDE BADGE FOR CURRENT STROKE
+                        if (!isCompleted && currentStrokeIndex < activeStrokes.size) {
+                            val targetStroke = activeStrokes[currentStrokeIndex]
+                            if (targetStroke.isNotEmpty()) {
+                                val startPt = Offset(targetStroke[0].x * w, targetStroke[0].y * h)
+                                // Glow
                                 drawCircle(
                                     color = SunnyYellow.copy(alpha = 0.55f),
                                     radius = 24.dp.toPx() * pulseScale,
-                                    center = pt
+                                    center = startPt
                                 )
+                                // Solid center
+                                drawCircle(
+                                    color = SunnyYellow,
+                                    radius = 16.dp.toPx(),
+                                    center = startPt
+                                )
+                                // Number label inside badge
+                                drawIntoCanvas { canvas ->
+                                    val numPaint = Paint().apply {
+                                        color = android.graphics.Color.WHITE
+                                        textSize = 14.sp.toPx()
+                                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                                        textAlign = Paint.Align.CENTER
+                                        isAntiAlias = true
+                                    }
+                                    val numBounds = Rect()
+                                    val numStr = (currentStrokeIndex + 1).toString()
+                                    numPaint.getTextBounds(numStr, 0, numStr.length, numBounds)
+                                    val numY = startPt.y + (numBounds.height() / 2f) - numBounds.bottom
+                                    canvas.nativeCanvas.drawText(numStr, startPt.x, numY, numPaint)
+                                }
                             }
-
-                            // Dot background
-                            drawCircle(
-                                color = if (isConnected) (if (isCapital) SkyVibrant else CandyCoral)
-                                else if (isNext) SunnyYellow
-                                else Color(0xFFE2E8F0),
-                                radius = if (isNext) 18.dp.toPx() else 14.dp.toPx(),
-                                center = pt
-                            )
-
-                            // White center
-                            drawCircle(
-                                color = Color.White,
-                                radius = if (isNext) 10.dp.toPx() else 7.dp.toPx(),
-                                center = pt
-                            )
                         }
                     }
 
@@ -616,28 +463,30 @@ fun AbcDotsScreen(onBack: () -> Unit) {
                                     Text(text = currentItem.emoji, fontSize = 34.sp)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
+                                        val charShow = if (isCapital) currentItem.letter.uppercaseChar() else currentItem.letter.lowercaseChar()
+                                        val word = if (LanguageManager.isMalay()) currentItem.bmWord else currentItem.enWord
                                         Text(
-                                            text = "$letterDisplay untuk $word!",
-                                            fontSize = 17.sp,
+                                            text = "$charShow untuk $word!",
+                                            fontSize = 18.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = TextDark
                                         )
                                         Text(
-                                            text = if (LanguageManager.isMalay()) "Tahniah! Anda berjaya!" else "Hooray! Great job!",
+                                            text = if (LanguageManager.isMalay()) "Tahniah! Hebat sekali!" else "Great job! Keep tracing!",
                                             fontSize = 12.sp,
-                                            color = SkyVibrant,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextDark.copy(alpha = 0.65f)
                                         )
                                     }
                                 }
 
                                 ToddlerButton(
-                                    text = "Seterusnya ▶",
+                                    text = if (LanguageManager.isMalay()) "Seterusnya" else "Next",
+                                    icon = "➡️",
                                     buttonColor = SkyVibrant,
-                                    shadowColor = SkyShadow,
-                                    height = 42.dp,
+                                    shadowColor = CoralShadow,
                                     onClick = {
-                                        SoundEngine.playSparkle()
+                                        SoundEngine.playBoing()
                                         selectedLetterIndex = (selectedLetterIndex + 1) % letters.size
                                     }
                                 )
@@ -648,6 +497,7 @@ fun AbcDotsScreen(onBack: () -> Unit) {
             }
         }
 
+        // Celebration Confetti Overlay
         ConfettiOverlay(state = confettiState)
     }
 }
@@ -659,22 +509,28 @@ private fun LetterCasePill(
     activeColor: Color,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (isActive) activeColor else Color.White.copy(alpha = 0.9f))
+            .height(38.dp)
+            .clip(RoundedCornerShape(19.dp))
+            .background(if (isActive) activeColor else Color.White.copy(alpha = 0.92f))
             .border(
                 1.5.dp,
-                if (isActive) activeColor else Color(0xFFE2E8F0),
-                RoundedCornerShape(18.dp)
+                if (isActive) Color.White else Color(0xFFE2E8F0),
+                RoundedCornerShape(19.dp)
             )
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 7.dp),
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() }
+            .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.ExtraBold,
             color = if (isActive) Color.White else TextDark
         )
@@ -682,49 +538,305 @@ private fun LetterCasePill(
 }
 
 /**
- * Builds either a smooth Catmull-Rom curved path or straight polygon segments.
- * Pass straightIndices to keep specific segments straight.
+ * Generates educational handwriting stroke paths for standard sans-serif letterforms.
  */
-private fun buildSmoothPath(
-    dots: List<Offset>,
-    w: Float,
-    h: Float,
-    count: Int,
-    isCurved: Boolean,
-    straightIndices: Set<Int> = emptySet()
-): Path {
-    val path = Path()
-    if (dots.isEmpty() || count <= 0) return path
-    val pts = dots.take(count).map { Offset(it.x * w, it.y * h) }
-    if (pts.size == 1) {
-        path.moveTo(pts[0].x, pts[0].y)
-        return path
-    }
-    path.moveTo(pts[0].x, pts[0].y)
-    if (!isCurved) {
-        for (i in 1 until pts.size) {
-            path.lineTo(pts[i].x, pts[i].y)
-        }
-        return path
-    }
-
-    for (i in 0 until pts.size - 1) {
-        val p1 = pts[i]
-        val p2 = pts[i + 1]
-        if (straightIndices.contains(i)) {
-            path.lineTo(p2.x, p2.y)
-        } else {
-            val p0 = if (i > 0) pts[i - 1] else Offset(p1.x * 2 - p2.x, p1.y * 2 - p2.y)
-            val p3 = if (i + 2 < pts.size) pts[i + 2] else Offset(p2.x * 2 - p1.x, p2.y * 2 - p1.y)
-
-            val c1x = p1.x + (p2.x - p0.x) / 6f
-            val c1y = p1.y + (p2.y - p0.y) / 6f
-            val c2x = p2.x - (p3.x - p1.x) / 6f
-            val c2y = p2.y - (p3.y - p1.y) / 6f
-
-            path.cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
-        }
-    }
-    return path
+private fun getEducationalLetters(): List<LetterStrokeData> {
+    return listOf(
+        // A
+        LetterStrokeData('A', "Apple", "Ayam", "🍎",
+            capitalStrokes = listOf(
+                listOf(Offset(0.25f, 0.82f), Offset(0.33f, 0.60f), Offset(0.42f, 0.38f), Offset(0.50f, 0.16f)),
+                listOf(Offset(0.50f, 0.16f), Offset(0.58f, 0.38f), Offset(0.67f, 0.60f), Offset(0.75f, 0.82f)),
+                listOf(Offset(0.35f, 0.54f), Offset(0.50f, 0.54f), Offset(0.65f, 0.54f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.66f, 0.46f), Offset(0.50f, 0.38f), Offset(0.34f, 0.52f), Offset(0.34f, 0.70f), Offset(0.50f, 0.82f), Offset(0.66f, 0.75f)),
+                listOf(Offset(0.66f, 0.38f), Offset(0.66f, 0.60f), Offset(0.66f, 0.82f))
+            )
+        ),
+        // B
+        LetterStrokeData('B', "Ball", "Bola", "⚽",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.49f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.28f, 0.16f), Offset(0.65f, 0.18f), Offset(0.72f, 0.33f), Offset(0.65f, 0.49f), Offset(0.28f, 0.49f)),
+                listOf(Offset(0.28f, 0.49f), Offset(0.68f, 0.51f), Offset(0.76f, 0.66f), Offset(0.68f, 0.82f), Offset(0.28f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.30f, 0.16f), Offset(0.30f, 0.49f), Offset(0.30f, 0.82f)),
+                listOf(Offset(0.30f, 0.54f), Offset(0.50f, 0.46f), Offset(0.70f, 0.58f), Offset(0.70f, 0.74f), Offset(0.50f, 0.82f), Offset(0.30f, 0.80f))
+            )
+        ),
+        // C
+        LetterStrokeData('C', "Cat", "Cawan", "🐱",
+            capitalStrokes = listOf(
+                listOf(Offset(0.74f, 0.28f), Offset(0.50f, 0.16f), Offset(0.26f, 0.35f), Offset(0.24f, 0.50f), Offset(0.26f, 0.65f), Offset(0.50f, 0.82f), Offset(0.74f, 0.72f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.70f, 0.46f), Offset(0.50f, 0.38f), Offset(0.32f, 0.52f), Offset(0.32f, 0.68f), Offset(0.50f, 0.82f), Offset(0.70f, 0.74f))
+            )
+        ),
+        // D
+        LetterStrokeData('D', "Duck", "Daun", "🦆",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.49f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.28f, 0.16f), Offset(0.65f, 0.20f), Offset(0.76f, 0.49f), Offset(0.65f, 0.78f), Offset(0.28f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.68f, 0.52f), Offset(0.50f, 0.46f), Offset(0.32f, 0.58f), Offset(0.32f, 0.74f), Offset(0.50f, 0.82f), Offset(0.68f, 0.78f)),
+                listOf(Offset(0.68f, 0.16f), Offset(0.68f, 0.49f), Offset(0.68f, 0.82f))
+            )
+        ),
+        // E
+        LetterStrokeData('E', "Elephant", "Epal", "🐘",
+            capitalStrokes = listOf(
+                listOf(Offset(0.30f, 0.16f), Offset(0.30f, 0.49f), Offset(0.30f, 0.82f)),
+                listOf(Offset(0.30f, 0.16f), Offset(0.50f, 0.16f), Offset(0.72f, 0.16f)),
+                listOf(Offset(0.30f, 0.49f), Offset(0.48f, 0.49f), Offset(0.65f, 0.49f)),
+                listOf(Offset(0.30f, 0.82f), Offset(0.50f, 0.82f), Offset(0.72f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.60f), Offset(0.70f, 0.60f)),
+                listOf(Offset(0.70f, 0.60f), Offset(0.68f, 0.44f), Offset(0.50f, 0.38f), Offset(0.32f, 0.52f), Offset(0.32f, 0.68f), Offset(0.50f, 0.82f), Offset(0.70f, 0.74f))
+            )
+        ),
+        // F
+        LetterStrokeData('F', "Fish", "Feri", "🐟",
+            capitalStrokes = listOf(
+                listOf(Offset(0.30f, 0.16f), Offset(0.30f, 0.49f), Offset(0.30f, 0.82f)),
+                listOf(Offset(0.30f, 0.16f), Offset(0.50f, 0.16f), Offset(0.72f, 0.16f)),
+                listOf(Offset(0.30f, 0.49f), Offset(0.48f, 0.49f), Offset(0.65f, 0.49f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.65f, 0.22f), Offset(0.50f, 0.16f), Offset(0.42f, 0.30f), Offset(0.42f, 0.82f)),
+                listOf(Offset(0.30f, 0.46f), Offset(0.58f, 0.46f))
+            )
+        ),
+        // G
+        LetterStrokeData('G', "Giraffe", "Gajah", "🦒",
+            capitalStrokes = listOf(
+                listOf(Offset(0.74f, 0.28f), Offset(0.50f, 0.16f), Offset(0.26f, 0.35f), Offset(0.24f, 0.50f), Offset(0.26f, 0.65f), Offset(0.50f, 0.82f), Offset(0.74f, 0.70f), Offset(0.74f, 0.54f)),
+                listOf(Offset(0.74f, 0.54f), Offset(0.52f, 0.54f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.68f, 0.46f), Offset(0.50f, 0.38f), Offset(0.34f, 0.50f), Offset(0.34f, 0.68f), Offset(0.50f, 0.76f), Offset(0.68f, 0.72f)),
+                listOf(Offset(0.68f, 0.38f), Offset(0.68f, 0.74f), Offset(0.65f, 0.90f), Offset(0.48f, 0.92f), Offset(0.34f, 0.85f))
+            )
+        ),
+        // H
+        LetterStrokeData('H', "Horse", "Harimau", "🐴",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.49f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.72f, 0.16f), Offset(0.72f, 0.49f), Offset(0.72f, 0.82f)),
+                listOf(Offset(0.28f, 0.49f), Offset(0.50f, 0.49f), Offset(0.72f, 0.49f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.16f), Offset(0.32f, 0.49f), Offset(0.32f, 0.82f)),
+                listOf(Offset(0.32f, 0.52f), Offset(0.50f, 0.44f), Offset(0.68f, 0.56f), Offset(0.68f, 0.82f))
+            )
+        ),
+        // I
+        LetterStrokeData('I', "Ice Cream", "Ikan", "🍦",
+            capitalStrokes = listOf(
+                listOf(Offset(0.50f, 0.16f), Offset(0.50f, 0.49f), Offset(0.50f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.50f, 0.44f), Offset(0.50f, 0.63f), Offset(0.50f, 0.82f)),
+                listOf(Offset(0.50f, 0.24f), Offset(0.50f, 0.28f))
+            )
+        ),
+        // J
+        LetterStrokeData('J', "Juice", "Jagung", "🧃",
+            capitalStrokes = listOf(
+                listOf(Offset(0.66f, 0.16f), Offset(0.66f, 0.60f), Offset(0.56f, 0.78f), Offset(0.40f, 0.82f), Offset(0.28f, 0.72f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.58f, 0.42f), Offset(0.58f, 0.76f), Offset(0.50f, 0.90f), Offset(0.36f, 0.88f), Offset(0.28f, 0.80f)),
+                listOf(Offset(0.58f, 0.24f), Offset(0.58f, 0.28f))
+            )
+        ),
+        // K
+        LetterStrokeData('K', "Kite", "Kucing", "🪁",
+            capitalStrokes = listOf(
+                listOf(Offset(0.30f, 0.16f), Offset(0.30f, 0.49f), Offset(0.30f, 0.82f)),
+                listOf(Offset(0.70f, 0.20f), Offset(0.50f, 0.35f), Offset(0.32f, 0.49f)),
+                listOf(Offset(0.32f, 0.49f), Offset(0.52f, 0.66f), Offset(0.72f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.16f), Offset(0.32f, 0.49f), Offset(0.32f, 0.82f)),
+                listOf(Offset(0.66f, 0.44f), Offset(0.34f, 0.63f)),
+                listOf(Offset(0.34f, 0.63f), Offset(0.68f, 0.82f))
+            )
+        ),
+        // L
+        LetterStrokeData('L', "Lion", "Lembu", "🦁",
+            capitalStrokes = listOf(
+                listOf(Offset(0.32f, 0.16f), Offset(0.32f, 0.49f), Offset(0.32f, 0.82f)),
+                listOf(Offset(0.32f, 0.82f), Offset(0.52f, 0.82f), Offset(0.72f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.50f, 0.16f), Offset(0.50f, 0.49f), Offset(0.50f, 0.82f))
+            )
+        ),
+        // M
+        LetterStrokeData('M', "Monkey", "Monyet", "🐒",
+            capitalStrokes = listOf(
+                listOf(Offset(0.22f, 0.82f), Offset(0.22f, 0.49f), Offset(0.22f, 0.16f)),
+                listOf(Offset(0.22f, 0.16f), Offset(0.36f, 0.40f), Offset(0.50f, 0.60f)),
+                listOf(Offset(0.50f, 0.60f), Offset(0.64f, 0.40f), Offset(0.78f, 0.16f)),
+                listOf(Offset(0.78f, 0.16f), Offset(0.78f, 0.49f), Offset(0.78f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.24f, 0.42f), Offset(0.24f, 0.62f), Offset(0.24f, 0.82f)),
+                listOf(Offset(0.24f, 0.50f), Offset(0.38f, 0.42f), Offset(0.50f, 0.54f), Offset(0.50f, 0.82f)),
+                listOf(Offset(0.50f, 0.50f), Offset(0.64f, 0.42f), Offset(0.76f, 0.54f), Offset(0.76f, 0.82f))
+            )
+        ),
+        // N
+        LetterStrokeData('N', "Nest", "Nanas", "🪺",
+            capitalStrokes = listOf(
+                listOf(Offset(0.26f, 0.82f), Offset(0.26f, 0.49f), Offset(0.26f, 0.16f)),
+                listOf(Offset(0.26f, 0.16f), Offset(0.50f, 0.49f), Offset(0.74f, 0.82f)),
+                listOf(Offset(0.74f, 0.82f), Offset(0.74f, 0.49f), Offset(0.74f, 0.16f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.30f, 0.42f), Offset(0.30f, 0.62f), Offset(0.30f, 0.82f)),
+                listOf(Offset(0.30f, 0.52f), Offset(0.50f, 0.42f), Offset(0.70f, 0.56f), Offset(0.70f, 0.82f))
+            )
+        ),
+        // O
+        LetterStrokeData('O', "Owl", "Oren", "🦉",
+            capitalStrokes = listOf(
+                listOf(Offset(0.50f, 0.16f), Offset(0.76f, 0.32f), Offset(0.78f, 0.50f), Offset(0.76f, 0.68f), Offset(0.50f, 0.84f), Offset(0.24f, 0.68f), Offset(0.22f, 0.50f), Offset(0.24f, 0.32f), Offset(0.50f, 0.16f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.50f, 0.38f), Offset(0.70f, 0.48f), Offset(0.72f, 0.60f), Offset(0.70f, 0.72f), Offset(0.50f, 0.82f), Offset(0.30f, 0.72f), Offset(0.28f, 0.60f), Offset(0.30f, 0.48f), Offset(0.50f, 0.38f))
+            )
+        ),
+        // P
+        LetterStrokeData('P', "Penguin", "Pisang", "🐧",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.49f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.28f, 0.16f), Offset(0.68f, 0.18f), Offset(0.74f, 0.34f), Offset(0.68f, 0.50f), Offset(0.28f, 0.50f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.40f), Offset(0.32f, 0.68f), Offset(0.32f, 0.94f)),
+                listOf(Offset(0.32f, 0.48f), Offset(0.52f, 0.40f), Offset(0.70f, 0.50f), Offset(0.70f, 0.66f), Offset(0.52f, 0.76f), Offset(0.32f, 0.74f))
+            )
+        ),
+        // Q
+        LetterStrokeData('Q', "Queen", "Quran", "👑",
+            capitalStrokes = listOf(
+                listOf(Offset(0.50f, 0.16f), Offset(0.76f, 0.32f), Offset(0.78f, 0.50f), Offset(0.76f, 0.68f), Offset(0.50f, 0.84f), Offset(0.24f, 0.68f), Offset(0.22f, 0.50f), Offset(0.24f, 0.32f), Offset(0.50f, 0.16f)),
+                listOf(Offset(0.58f, 0.68f), Offset(0.68f, 0.78f), Offset(0.78f, 0.86f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.68f, 0.46f), Offset(0.50f, 0.38f), Offset(0.32f, 0.50f), Offset(0.32f, 0.68f), Offset(0.50f, 0.76f), Offset(0.68f, 0.72f)),
+                listOf(Offset(0.68f, 0.38f), Offset(0.68f, 0.68f), Offset(0.68f, 0.94f))
+            )
+        ),
+        // R
+        LetterStrokeData('R', "Rabbit", "Roti", "🐰",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.49f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.28f, 0.16f), Offset(0.68f, 0.18f), Offset(0.74f, 0.34f), Offset(0.68f, 0.50f), Offset(0.28f, 0.50f)),
+                listOf(Offset(0.48f, 0.50f), Offset(0.62f, 0.66f), Offset(0.74f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.36f, 0.40f), Offset(0.36f, 0.61f), Offset(0.36f, 0.82f)),
+                listOf(Offset(0.36f, 0.52f), Offset(0.50f, 0.40f), Offset(0.66f, 0.44f))
+            )
+        ),
+        // S
+        LetterStrokeData('S', "Star", "Susu", "⭐",
+            capitalStrokes = listOf(
+                listOf(Offset(0.72f, 0.28f), Offset(0.50f, 0.16f), Offset(0.30f, 0.32f), Offset(0.50f, 0.49f), Offset(0.72f, 0.66f), Offset(0.50f, 0.84f), Offset(0.28f, 0.72f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.68f, 0.48f), Offset(0.50f, 0.40f), Offset(0.34f, 0.50f), Offset(0.50f, 0.61f), Offset(0.68f, 0.72f), Offset(0.50f, 0.82f), Offset(0.32f, 0.74f))
+            )
+        ),
+        // T
+        LetterStrokeData('T', "Tiger", "Topi", "🐯",
+            capitalStrokes = listOf(
+                listOf(Offset(0.24f, 0.16f), Offset(0.50f, 0.16f), Offset(0.76f, 0.16f)),
+                listOf(Offset(0.50f, 0.16f), Offset(0.50f, 0.49f), Offset(0.50f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.48f, 0.22f), Offset(0.48f, 0.68f), Offset(0.56f, 0.82f), Offset(0.66f, 0.80f)),
+                listOf(Offset(0.32f, 0.42f), Offset(0.64f, 0.42f))
+            )
+        ),
+        // U
+        LetterStrokeData('U', "Umbrella", "Ubat", "☂️",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.16f), Offset(0.28f, 0.56f), Offset(0.38f, 0.78f), Offset(0.50f, 0.82f), Offset(0.62f, 0.78f), Offset(0.72f, 0.56f), Offset(0.72f, 0.16f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.42f), Offset(0.32f, 0.66f), Offset(0.44f, 0.80f), Offset(0.56f, 0.80f), Offset(0.68f, 0.66f), Offset(0.68f, 0.42f)),
+                listOf(Offset(0.68f, 0.42f), Offset(0.68f, 0.62f), Offset(0.68f, 0.82f))
+            )
+        ),
+        // V
+        LetterStrokeData('V', "Van", "Van", "🚐",
+            capitalStrokes = listOf(
+                listOf(Offset(0.26f, 0.16f), Offset(0.38f, 0.49f), Offset(0.50f, 0.82f)),
+                listOf(Offset(0.50f, 0.82f), Offset(0.62f, 0.49f), Offset(0.74f, 0.16f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.42f), Offset(0.50f, 0.82f)),
+                listOf(Offset(0.50f, 0.82f), Offset(0.68f, 0.42f))
+            )
+        ),
+        // W
+        LetterStrokeData('W', "Watermelon", "Wau", "🍉",
+            capitalStrokes = listOf(
+                listOf(Offset(0.20f, 0.16f), Offset(0.28f, 0.49f), Offset(0.36f, 0.82f)),
+                listOf(Offset(0.36f, 0.82f), Offset(0.43f, 0.54f), Offset(0.50f, 0.32f)),
+                listOf(Offset(0.50f, 0.32f), Offset(0.57f, 0.54f), Offset(0.64f, 0.82f)),
+                listOf(Offset(0.64f, 0.82f), Offset(0.72f, 0.49f), Offset(0.80f, 0.16f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.22f, 0.44f), Offset(0.36f, 0.82f)),
+                listOf(Offset(0.36f, 0.82f), Offset(0.50f, 0.52f)),
+                listOf(Offset(0.50f, 0.52f), Offset(0.64f, 0.82f)),
+                listOf(Offset(0.64f, 0.82f), Offset(0.78f, 0.44f))
+            )
+        ),
+        // X
+        LetterStrokeData('X', "Xylophone", "Xilofon", "🎹",
+            capitalStrokes = listOf(
+                listOf(Offset(0.26f, 0.16f), Offset(0.50f, 0.49f), Offset(0.74f, 0.82f)),
+                listOf(Offset(0.74f, 0.16f), Offset(0.50f, 0.49f), Offset(0.26f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.42f), Offset(0.68f, 0.82f)),
+                listOf(Offset(0.68f, 0.42f), Offset(0.32f, 0.82f))
+            )
+        ),
+        // Y
+        LetterStrokeData('Y', "Yo-Yo", "Yis", "🪀",
+            capitalStrokes = listOf(
+                listOf(Offset(0.26f, 0.16f), Offset(0.50f, 0.49f)),
+                listOf(Offset(0.74f, 0.16f), Offset(0.50f, 0.49f)),
+                listOf(Offset(0.50f, 0.49f), Offset(0.50f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.42f), Offset(0.50f, 0.66f)),
+                listOf(Offset(0.68f, 0.42f), Offset(0.50f, 0.66f), Offset(0.38f, 0.88f), Offset(0.28f, 0.86f))
+            )
+        ),
+        // Z
+        LetterStrokeData('Z', "Zebra", "Zirafah", "🦓",
+            capitalStrokes = listOf(
+                listOf(Offset(0.28f, 0.18f), Offset(0.50f, 0.18f), Offset(0.72f, 0.18f)),
+                listOf(Offset(0.72f, 0.18f), Offset(0.50f, 0.50f), Offset(0.28f, 0.82f)),
+                listOf(Offset(0.28f, 0.82f), Offset(0.50f, 0.82f), Offset(0.72f, 0.82f))
+            ),
+            smallStrokes = listOf(
+                listOf(Offset(0.32f, 0.44f), Offset(0.68f, 0.44f)),
+                listOf(Offset(0.68f, 0.44f), Offset(0.32f, 0.82f)),
+                listOf(Offset(0.32f, 0.82f), Offset(0.68f, 0.82f))
+            )
+        )
+    )
 }
-

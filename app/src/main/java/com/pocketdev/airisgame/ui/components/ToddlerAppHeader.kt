@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,18 +40,20 @@ import androidx.compose.ui.unit.sp
 import com.pocketdev.airisgame.R
 import com.pocketdev.airisgame.audio.AudioSettings
 import com.pocketdev.airisgame.audio.SoundEngine
-import com.pocketdev.airisgame.core.LanguageManager
-import com.pocketdev.airisgame.ui.theme.CandyCoral
+import com.pocketdev.airisgame.core.ScreenPinningManager
 import com.pocketdev.airisgame.ui.theme.TextDark
 
 /**
  * Universal toddler header available at the top of ALL screens.
  * Integrates:
- * - Back button (or toddler avatar on Home)
+ * - Back button (or toddler avatar on Home) with explicit 44-46dp size
  * - Screen Title & Subtitle with responsive typography
- * - Custom Action Slot (e.g. Find Me quiz toggle, song selector)
- * - Modern Language Toggle (EN | BM, zero flags/emojis)
- * - Universal Sound Button opening the Dual-Slider AudioControlDialog
+ * - Custom Action Slot (e.g. Parent Settings cog)
+ * - Modern Language Toggle (EN | BM, 44dp height)
+ * - Universal Sound Button (44dp size)
+ * - Toddler App Pinning Lock Indicator (44dp size) with 3s hold unlock
+ *
+ * Guarantees zero control collisions via structured non-overlapping Row.
  */
 @Composable
 fun ToddlerAppHeader(
@@ -71,14 +71,16 @@ fun ToddlerAppHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // LEFT: Back Button or Avatar
+        // LEFT: Back Button or Avatar + Title
         Row(
+            modifier = Modifier.weight(1f, fill = false),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f, fill = false)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (onBack != null) {
                 AppBackButton(
@@ -86,14 +88,14 @@ fun ToddlerAppHeader(
                         SoundEngine.playBoing()
                         onBack()
                     },
-                    size = if (isTablet) 52.dp else 46.dp,
-                    iconSize = if (isTablet) 26.dp else 22.dp
+                    size = if (isTablet) 48.dp else 44.dp,
+                    iconSize = if (isTablet) 24.dp else 22.dp
                 )
             } else {
                 // Home Screen Avatar
                 Box(
                     modifier = Modifier
-                        .size(if (isTablet) 54.dp else 48.dp)
+                        .size(if (isTablet) 48.dp else 44.dp)
                         .clip(CircleShape)
                         .background(Color.White)
                         .border(2.dp, Color(0xFFE2E8F0), CircleShape),
@@ -102,18 +104,16 @@ fun ToddlerAppHeader(
                     Image(
                         painter = painterResource(id = R.drawable.airis_avatar),
                         contentDescription = "Airis Avatar",
-                        modifier = Modifier.size(if (isTablet) 46.dp else 40.dp)
+                        modifier = Modifier.size(if (isTablet) 40.dp else 36.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
-
             // Title & Subtitle
-            Column {
+            Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = title,
-                    fontSize = if (isTablet) 24.sp else if (screenWidth < 380) 18.sp else 20.sp,
+                    fontSize = if (isTablet) 22.sp else if (screenWidth < 380) 17.sp else 19.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextDark,
                     maxLines = 1,
@@ -122,7 +122,7 @@ fun ToddlerAppHeader(
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        fontSize = if (isTablet) 13.sp else 11.sp,
+                        fontSize = if (isTablet) 12.sp else 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextDark.copy(alpha = 0.65f),
                         maxLines = 1,
@@ -132,25 +132,32 @@ fun ToddlerAppHeader(
             }
         }
 
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
-        // RIGHT: Action Slot + Modern Language Toggle + Sound Button
+        // RIGHT: Action Slot + Modern Language Toggle + Sound Button + Pinning Lock Indicator
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (screenWidth < 380) 5.dp else 8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             actionSlot?.invoke(this)
 
             // Modern Language Toggle (EN | BM)
             ModernLanguageToggle()
 
-            // Header Sound Control Button
+            // Header Sound Control Button (44dp)
             HeaderSoundButton(
                 isAllMuted = AudioSettings.isAllMuted,
                 onClick = {
                     SoundEngine.playPop()
                     showAudioDialog = true
                 }
+            )
+
+            // Toddler App Pinning Lock Indicator (44dp)
+            ToddlerLockIndicator(
+                isPinned = ScreenPinningManager.isPinned,
+                onLockRequested = { ScreenPinningManager.lock() },
+                onUnlockConfirmed = { ScreenPinningManager.unlock() }
             )
         }
     }
@@ -177,7 +184,7 @@ private fun HeaderSoundButton(
 
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(44.dp)
             .scale(scale)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.94f))
@@ -193,7 +200,7 @@ private fun HeaderSoundButton(
     ) {
         Text(
             text = if (isAllMuted) "🔇" else "🔊",
-            fontSize = 17.sp
+            fontSize = 18.sp
         )
     }
 }

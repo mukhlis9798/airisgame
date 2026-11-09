@@ -35,14 +35,22 @@
 - **11 Transportation Modes**: Airplane, Ambulance, Bicycle, Boat, Bus, Car, Firetruck, Helicopter, Police Car, Rocket, Tractor, Train, Van.
 - Authentic vehicle sound effects and emergency sirens with real photos.
 
-### ✏️ 6. Connect-the-Dots (ABC & Lowercase Letters)
-- **Smooth Catmull-Rom Splines**: Rounded letters (e.g. lowercase `a`, `b`, `c`, `o`) curve smoothly without sharp jagged lines.
-- **Palm Rejection**: Custom single-pointer event tracking locks onto the child's active finger, ignoring resting palms or stray second touches.
-- **Haptic Feedback**: Fires a subtle tactile tick when sequential dots are connected.
+### ✏️ 6. ABC Tracing (Authentic Typography Stencil to Solid Strokes)
+- **Authentic Educational Sans-Serif Typography**: Replaced abstract dot polygons with standard educational sans-serif letterforms across all 26 letters (A–Z) in both Capital and Small cases.
+- **Faint Letter Stencil Background**: Renders a subtle semi-transparent letter stencil background (`alpha = 0.12f`) so toddlers immediately recognize authentic letterforms.
+- **Dashed Outlines to Solid Strokes**: Initial untraced letter displays as a prominent dashed guide (`20f, 15f`). Freeform tracing with generous touch tolerance (~38.dp hit-box) converts dashed segments into thick, vibrant solid strokes (~24.dp).
+- **Single-Pointer Palm Rejection**: Ignores resting palms, wrists, and stray fingers while tracing.
+- **Audio & Visual Celebrations**: Plays positive sparkle feedback, triggers gentle haptic ticks on stroke completion, and launches fanfare and confetti upon completing the letter.
 
-### 🎂 7. Connect-the-Dots (Objects & Toys)
-- Kid-favorite silhouettes: Apple, Ice Cream Cone, Birthday Cake, Balloon, Teddy Bear, Flower, Car.
-- Hybrid geometry: Curves for rounded tops (ice cream scoops, cake tiers) and straight lines for bases (cones, candles).
+### 🎨 7. Cartoon Silhouettes Tracing (Flower, Car, Teddy, Balloon, Cake)
+- **Distinct Cartoon Line-Art Paths**: Replaced generic loops of dots with instantly recognizable cartoon silhouettes:
+  - 🌸 **Flower**: Center circle, 5 distinct rounded petals, stem, and leaves.
+  - 🚗 **Cute Car**: Aerodynamic car body silhouette with wheels, headlights, and windows.
+  - 🧸 **Teddy Bear**: Distinct head with circular ears, snout, body, arms, and feet.
+  - 🎈 **Floating Balloon**: Oval balloon body with knot and squiggly trailing string.
+  - 🎂 **Birthday Cake**: Tiered cake silhouette with decorative candles and flames.
+- **Playful Dashed Outlines to Solid Lines**: Freeform tracing converts dashed outlines into vibrant solid colored lines.
+- **Spring Bounce Illustration Reveal**: When the full silhouette is traced, a bouncy spring transition reveals the fully colored cartoon illustration, accompanied by matching sound effects (e.g., car honk, chime, balloon pop, fanfare), haptics, and celebration confetti.
 
 ### 🎨 8. 7-Color Rainbow Snap Game
 - **All 7 Rainbow Colors**: 🍎 Red (*Merah*), 🍊 Orange (*Oren*), ⭐ Yellow (*Kuning*), 🐸 Green (*Hijau*), 🐬 Blue (*Biru*), 🍇 Purple (*Ungu*), and 🌸 Pink (*Merah Jambu*).

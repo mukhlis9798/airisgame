@@ -363,36 +363,29 @@ fun BalloonsScreen(onBack: () -> Unit) {
         }
 
         // Universal Header with Language Switcher and Sound Control Dialog
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-        ) {
-            ToddlerAppHeader(
-                title = com.pocketdev.airisgame.core.LanguageManager.balloonsTitle(),
-                subtitle = com.pocketdev.airisgame.core.LanguageManager.balloonsSubtitle(),
-                onBack = onBack,
-                actionSlot = {
-                    Box(
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(19.dp))
-                            .background(Color.White)
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(19.dp))
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "🎈 $poppedCount",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TextDark
-                        )
-                    }
+        ToddlerAppHeader(
+            title = com.pocketdev.airisgame.core.LanguageManager.balloonsTitle(),
+            subtitle = com.pocketdev.airisgame.core.LanguageManager.balloonsSubtitle(),
+            onBack = onBack,
+            actionSlot = {
+                Box(
+                    modifier = Modifier
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎈 $poppedCount",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextDark
+                    )
                 }
-            )
-        }
+            }
+        )
 
         ConfettiOverlay(state = confettiState)
     }

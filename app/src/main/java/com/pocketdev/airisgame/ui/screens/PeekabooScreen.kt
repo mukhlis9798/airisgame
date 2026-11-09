@@ -106,10 +106,7 @@ fun PeekabooScreen(onBack: () -> Unit) {
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             // Universal Header with integrated Language Switcher and Sound Settings Button
             ToddlerAppHeader(
@@ -120,7 +117,7 @@ fun PeekabooScreen(onBack: () -> Unit) {
                     AppIconButton(
                         icon = Icons.Rounded.Refresh,
                         contentDescription = LanguageManager.again(),
-                        size = 38.dp,
+                        size = 44.dp,
                         iconSize = 22.dp,
                         onClick = {
                             SoundEngine.playSparkle()
@@ -135,12 +132,13 @@ fun PeekabooScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Cheerful Banner
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White.copy(alpha = 0.94f))
                     .padding(vertical = 10.dp, horizontal = 16.dp),
@@ -158,14 +156,15 @@ fun PeekabooScreen(onBack: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Eggs Grid (Responsive Columns)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)

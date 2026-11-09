@@ -134,10 +134,7 @@ fun NumbersScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header
@@ -149,7 +146,7 @@ fun NumbersScreen(onBack: () -> Unit) {
                     AppIconButton(
                         icon = Icons.Rounded.Refresh,
                         contentDescription = LanguageManager.again(),
-                        size = 38.dp,
+                        size = 44.dp,
                         iconSize = 22.dp,
                         onClick = {
                             SoundEngine.playSparkle()
@@ -166,7 +163,8 @@ fun NumbersScreen(onBack: () -> Unit) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp),
+                    .height(130.dp)
+                    .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(26.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -234,6 +232,7 @@ fun NumbersScreen(onBack: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color.White.copy(alpha = 0.92f))
                     .padding(vertical = 8.dp, horizontal = 14.dp),
@@ -252,13 +251,14 @@ fun NumbersScreen(onBack: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Countable Items Grid / Flow
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(26.dp))
                     .background(Color.White.copy(alpha = 0.65f))
                     .padding(12.dp),

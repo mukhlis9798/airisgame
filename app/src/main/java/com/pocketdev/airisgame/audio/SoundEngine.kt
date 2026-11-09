@@ -23,6 +23,14 @@ object SoundEngine {
     private var soundPool: SoundPool? = null
     private var appContext: Context? = null
     private val soundMap = ConcurrentHashMap<Int, Int>()
+    private val xyloSoundMap = ConcurrentHashMap<Int, Int>()
+    private var popSoundId: Int = 0
+    private var clickSoundId: Int = 0
+    private var carHonkSoundId: Int = 0
+    private var chimeSoundId: Int = 0
+
+    // Standard xylophone frequencies: C5, D5, E5, F5, G5, A5, B5, C6
+    private val xyloFreqs = intArrayOf(261, 293, 329, 349, 392, 440, 493, 523)
 
     // All bundled raw audio resources to preload for sub-15ms latency
     private val rawResourceList = listOf(
@@ -66,7 +74,7 @@ object SoundEngine {
                 .build()
             soundPool = sp
 
-            // Preload all raw sound resources in background thread
+            // Preload all raw sound resources and synthesized short sounds in background thread
             scope.launch(Dispatchers.IO) {
                 val ctx = appContext ?: return@launch
                 for (resId in rawResourceList) {
@@ -75,6 +83,49 @@ object SoundEngine {
                         soundMap[resId] = soundId
                     } catch (_: Exception) {}
                 }
+
+                // Pre-generate and load short sound effects into SoundPool for sub-15ms latency
+                try {
+                    val soundDir = java.io.File(ctx.cacheDir, "sounds").apply { mkdirs() }
+
+                    // 1. Balloon Pop
+                    val popFile = java.io.File(soundDir, "pop.wav")
+                    if (!popFile.exists()) {
+                        writeWavFile(popFile, generatePopSamples())
+                    }
+                    popSoundId = sp.load(popFile.absolutePath, 1)
+
+                    // 2. Click
+                    val clickFile = java.io.File(soundDir, "click.wav")
+                    if (!clickFile.exists()) {
+                        writeWavFile(clickFile, generateClickSamples())
+                    }
+                    clickSoundId = sp.load(clickFile.absolutePath, 1)
+
+                    // 3. Car Honk
+                    val carFile = java.io.File(soundDir, "car_honk.wav")
+                    if (!carFile.exists()) {
+                        writeWavFile(carFile, generateCarHonkSamples())
+                    }
+                    carHonkSoundId = sp.load(carFile.absolutePath, 1)
+
+                    // 4. Chime
+                    val chimeFile = java.io.File(soundDir, "chime.wav")
+                    if (!chimeFile.exists()) {
+                        writeWavFile(chimeFile, generateChimeSamples())
+                    }
+                    chimeSoundId = sp.load(chimeFile.absolutePath, 1)
+
+                    // 5. Xylophone notes
+                    for (freq in xyloFreqs) {
+                        val noteFile = java.io.File(soundDir, "xylo_$freq.wav")
+                        if (!noteFile.exists()) {
+                            writeWavFile(noteFile, generateXyloSamples(freq.toFloat()))
+                        }
+                        val sid = sp.load(noteFile.absolutePath, 1)
+                        xyloSoundMap[freq] = sid
+                    }
+                } catch (_: Exception) {}
             }
         } catch (_: Exception) {}
     }
@@ -153,11 +204,21 @@ object SoundEngine {
     }
 
     /**
-     * Procedural Xylophone note synthesis with rich overtone harmonics.
+     * Procedural and preloaded SoundPool Xylophone note synthesis with sub-15ms latency.
      */
     fun playXylophoneNote(frequency: Float) {
         val volume = AudioSettings.effectiveVoiceVolume
         if (volume <= 0.01f) return
+        val sp = soundPool
+        val closestFreq = xyloFreqs.minByOrNull { kotlin.math.abs(it - frequency.toInt()) }
+        val soundId = if (closestFreq != null) xyloSoundMap[closestFreq] else null
+        if (sp != null && soundId != null && soundId != 0) {
+            val rate = (frequency / closestFreq!!.toFloat()).coerceIn(0.5f, 2.0f)
+            val res = sp.play(soundId, volume, volume, 2, 0, rate)
+            if (res != 0) return
+        }
+
+        // Procedural fallback
         scope.launch {
             val durationSec = 0.75f
             val numSamples = (SAMPLE_RATE * durationSec).toInt()
@@ -182,6 +243,13 @@ object SoundEngine {
     fun playPop() {
         val volume = AudioSettings.effectiveSfxVolume
         if (volume <= 0.01f) return
+        val sp = soundPool
+        if (sp != null && popSoundId != 0) {
+            val res = sp.play(popSoundId, volume, volume, 1, 0, 1.0f)
+            if (res != 0) return
+        }
+
+        // Procedural fallback
         scope.launch {
             val durationSec = 0.08f
             val numSamples = (SAMPLE_RATE * durationSec).toInt()
@@ -199,6 +267,39 @@ object SoundEngine {
             }
             playPcm(buffer)
         }
+    }
+
+    fun playClick() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        val sp = soundPool
+        if (sp != null && clickSoundId != 0) {
+            val res = sp.play(clickSoundId, volume, volume, 1, 0, 1.0f)
+            if (res != 0) return
+        }
+        playPop()
+    }
+
+    fun playCarHonk() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        val sp = soundPool
+        if (sp != null && carHonkSoundId != 0) {
+            val res = sp.play(carHonkSoundId, volume, volume, 1, 0, 1.0f)
+            if (res != 0) return
+        }
+        playBusHorn()
+    }
+
+    fun playChime() {
+        val volume = AudioSettings.effectiveSfxVolume
+        if (volume <= 0.01f) return
+        val sp = soundPool
+        if (sp != null && chimeSoundId != 0) {
+            val res = sp.play(chimeSoundId, volume, volume, 1, 0, 1.0f)
+            if (res != 0) return
+        }
+        playSparkle()
     }
 
     fun playCelebrationFanfare() {
@@ -581,6 +682,167 @@ object SoundEngine {
             }
         } catch (_: Exception) {
             // AudioTrack fallback
+        }
+    }
+
+    private fun generatePopSamples(): ShortArray {
+        val durationSec = 0.08f
+        val numSamples = (SAMPLE_RATE * durationSec).toInt()
+        val buffer = ShortArray(numSamples)
+        for (i in 0 until numSamples) {
+            val progress = i.toFloat() / numSamples
+            val currentFreq = 350.0 + 550.0 * progress
+            val t = i.toFloat() / SAMPLE_RATE
+            val envelope = exp(-8.0f * progress)
+            val sampleValue = sin(2.0 * PI * currentFreq * t) * envelope
+            val scaled = (sampleValue * Short.MAX_VALUE * 0.9f).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            buffer[i] = scaled.toShort()
+        }
+        return buffer
+    }
+
+    private fun generateClickSamples(): ShortArray {
+        val durationSec = 0.04f
+        val numSamples = (SAMPLE_RATE * durationSec).toInt()
+        val buffer = ShortArray(numSamples)
+        for (i in 0 until numSamples) {
+            val t = i.toFloat() / SAMPLE_RATE
+            val envelope = exp(-30.0f * (i.toFloat() / numSamples))
+            val sampleValue = sin(2.0 * PI * 1200.0 * t) * envelope
+            val scaled = (sampleValue * Short.MAX_VALUE * 0.8f).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            buffer[i] = scaled.toShort()
+        }
+        return buffer
+    }
+
+    private fun generateCarHonkSamples(): ShortArray {
+        val toneDuration = 0.12f
+        val gapDuration = 0.04f
+        val totalDuration = toneDuration * 2 + gapDuration
+        val numSamples = (SAMPLE_RATE * totalDuration).toInt()
+        val buffer = ShortArray(numSamples)
+        val toneSamples = (SAMPLE_RATE * toneDuration).toInt()
+        val gapSamples = (SAMPLE_RATE * gapDuration).toInt()
+
+        for (tone in 0..1) {
+            val start = tone * (toneSamples + gapSamples)
+            for (i in 0 until toneSamples) {
+                val idx = start + i
+                if (idx >= numSamples) break
+                val t = i.toFloat() / SAMPLE_RATE
+                val env = (1.0f - exp(-15.0f * (i.toFloat() / toneSamples))) * (1.0f - (i.toFloat() / toneSamples) * 0.2f)
+                val sample = (sin(2.0 * PI * 520.0 * t) + 0.6 * sin(2.0 * PI * 650.0 * t)) * env
+                val scaled = (sample * Short.MAX_VALUE * 0.5f).toInt()
+                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                buffer[idx] = scaled.toShort()
+            }
+        }
+        return buffer
+    }
+
+    private fun generateChimeSamples(): ShortArray {
+        val notes = floatArrayOf(1046.50f, 1318.51f, 1567.98f, 2093.00f)
+        val noteDur = 0.08f
+        val totalDur = noteDur * notes.size + 0.35f
+        val numSamples = (SAMPLE_RATE * totalDur).toInt()
+        val buffer = ShortArray(numSamples)
+
+        for ((index, freq) in notes.withIndex()) {
+            val startIndex = (index * noteDur * SAMPLE_RATE).toInt()
+            val noteLength = (SAMPLE_RATE * 0.45f).toInt()
+            for (i in 0 until noteLength) {
+                val targetIdx = startIndex + i
+                if (targetIdx >= numSamples) break
+                val t = i.toFloat() / SAMPLE_RATE
+                val env = exp(-7.0f * t)
+                val sample = sin(2.0 * PI * freq * t) * env
+                val cur = buffer[targetIdx].toInt()
+                val addition = (sample * Short.MAX_VALUE * 0.4f).toInt()
+                buffer[targetIdx] = (cur + addition).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            }
+        }
+        return buffer
+    }
+
+    private fun generateXyloSamples(frequency: Float): ShortArray {
+        val durationSec = 0.75f
+        val numSamples = (SAMPLE_RATE * durationSec).toInt()
+        val buffer = ShortArray(numSamples)
+        val decay = 4.5f
+
+        for (i in 0 until numSamples) {
+            val t = i.toFloat() / SAMPLE_RATE
+            val envelope = exp(-decay * t)
+            val fundamental = sin(2.0 * PI * frequency * t)
+            val secondHarmonic = 0.35 * sin(2.0 * PI * frequency * 2.0 * t)
+            val thirdHarmonic = 0.15 * sin(2.0 * PI * frequency * 3.0 * t)
+            val sampleValue = (fundamental + secondHarmonic + thirdHarmonic) * envelope
+            val scaled = (sampleValue * Short.MAX_VALUE * 0.75f).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            buffer[i] = scaled.toShort()
+        }
+        return buffer
+    }
+
+    private fun writeWavFile(file: java.io.File, samples: ShortArray, sampleRate: Int = SAMPLE_RATE) {
+        val dataSize = samples.size * 2
+        val totalSize = dataSize + 36
+        java.io.FileOutputStream(file).use { out ->
+            val header = ByteArray(44)
+            header[0] = 'R'.code.toByte()
+            header[1] = 'I'.code.toByte()
+            header[2] = 'F'.code.toByte()
+            header[3] = 'F'.code.toByte()
+            header[4] = (totalSize and 0xff).toByte()
+            header[5] = ((totalSize shr 8) and 0xff).toByte()
+            header[6] = ((totalSize shr 16) and 0xff).toByte()
+            header[7] = ((totalSize shr 24) and 0xff).toByte()
+            header[8] = 'W'.code.toByte()
+            header[9] = 'A'.code.toByte()
+            header[10] = 'V'.code.toByte()
+            header[11] = 'E'.code.toByte()
+            header[12] = 'f'.code.toByte()
+            header[13] = 'm'.code.toByte()
+            header[14] = 't'.code.toByte()
+            header[15] = ' '.code.toByte()
+            header[16] = 16
+            header[17] = 0
+            header[18] = 0
+            header[19] = 0
+            header[20] = 1 // Audio format 1 = PCM
+            header[21] = 0
+            header[22] = 1 // 1 channel
+            header[23] = 0
+            val byteRate = sampleRate * 2
+            header[24] = (sampleRate and 0xff).toByte()
+            header[25] = ((sampleRate shr 8) and 0xff).toByte()
+            header[26] = ((sampleRate shr 16) and 0xff).toByte()
+            header[27] = ((sampleRate shr 24) and 0xff).toByte()
+            header[28] = (byteRate and 0xff).toByte()
+            header[29] = ((byteRate shr 8) and 0xff).toByte()
+            header[30] = ((byteRate shr 16) and 0xff).toByte()
+            header[31] = ((byteRate shr 24) and 0xff).toByte()
+            header[32] = 2 // Block align
+            header[33] = 0
+            header[34] = 16 // Bits per sample
+            header[35] = 0
+            header[36] = 'd'.code.toByte()
+            header[37] = 'a'.code.toByte()
+            header[38] = 't'.code.toByte()
+            header[39] = 'a'.code.toByte()
+            header[40] = (dataSize and 0xff).toByte()
+            header[41] = ((dataSize shr 8) and 0xff).toByte()
+            header[42] = ((dataSize shr 16) and 0xff).toByte()
+            header[43] = ((dataSize shr 24) and 0xff).toByte()
+            out.write(header)
+
+            val byteBuf = java.nio.ByteBuffer.allocate(dataSize).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            for (s in samples) {
+                byteBuf.putShort(s)
+            }
+            out.write(byteBuf.array())
         }
     }
 }

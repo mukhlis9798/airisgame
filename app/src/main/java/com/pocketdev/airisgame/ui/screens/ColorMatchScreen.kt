@@ -257,10 +257,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header
@@ -272,7 +269,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                     AppIconButton(
                         icon = Icons.Rounded.Refresh,
                         contentDescription = LanguageManager.again(),
-                        size = 38.dp,
+                        size = 44.dp,
                         iconSize = 22.dp,
                         onClick = {
                             SoundEngine.playSparkle()
@@ -282,11 +279,13 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Round Switcher Pills
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -326,6 +325,7 @@ fun ColorMatchScreen(onBack: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White.copy(alpha = 0.94f))
                     .padding(vertical = 7.dp, horizontal = 12.dp),
@@ -358,7 +358,9 @@ fun ColorMatchScreen(onBack: () -> Unit) {
             if (!isFullRainbow) {
                 // 3 or 4 baskets in a single row
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     currentItems.forEach { item ->
@@ -381,7 +383,9 @@ fun ColorMatchScreen(onBack: () -> Unit) {
             } else {
                 // 7 baskets in 2 rows (4 on top, 3 below centered)
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -445,7 +449,8 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -518,7 +523,8 @@ fun ColorMatchScreen(onBack: () -> Unit) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {

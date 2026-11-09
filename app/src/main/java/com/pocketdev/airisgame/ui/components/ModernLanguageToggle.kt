@@ -69,12 +69,12 @@ fun ModernLanguageToggle(
 
     Box(
         modifier = modifier
-            .height(38.dp)
-            .width(86.dp)
+            .height(44.dp)
+            .width(80.dp)
             .scale(scale)
-            .clip(RoundedCornerShape(19.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(Color.White.copy(alpha = 0.94f))
-            .border(1.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(19.dp))
+            .border(1.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(22.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -92,9 +92,9 @@ fun ModernLanguageToggle(
             modifier = Modifier
                 .padding(3.dp)
                 .fillMaxHeight()
-                .width(38.dp)
-                .offset(x = (slidePosition * 42).dp)
-                .clip(RoundedCornerShape(16.dp))
+                .width(36.dp)
+                .offset(x = (slidePosition * 38).dp)
+                .clip(RoundedCornerShape(18.dp))
                 .background(activeColor)
         )
 

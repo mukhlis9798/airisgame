@@ -129,10 +129,7 @@ fun ShapesScreen(onBack: () -> Unit) {
             .background(SkyGradient)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Universal Header with integrated Language Switcher and Sound Settings Button
@@ -143,10 +140,10 @@ fun ShapesScreen(onBack: () -> Unit) {
                 actionSlot = {
                     Box(
                         modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(19.dp))
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
                             .background(Color.White)
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(19.dp))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(22.dp))
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
